@@ -1,0 +1,60 @@
+# Build directories
+build/
+.cache/
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# LLVM specific
+*.ll
+*.bc
+*.s
+
+# Compiled output
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Test coverage
+*.gcda
+*.gcno
+*.gcov
+
+# Dependencies
+deps/
+vendor/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db

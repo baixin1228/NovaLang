@@ -1,0 +1,54 @@
+h = 1
+# 定义函数
+def is_positive(x):
+    global h
+    #y = False
+    x = h
+    h = 20
+    x = h
+    #y = False
+    if True:
+        print(x)
+    return x > 0
+
+def and_bool(a, b):
+   return a and b
+
+x = 5
+x = 6
+y = True
+w = 1.0
+w = 2
+print(w)
+
+if x == 5:
+    x = 4
+    xx = 5
+
+if and_bool(True, False) and is_positive(x):
+    x = x + 0
+
+print(h)
+
+for i in range(3):
+    print(i)
+
+z = x == 8
+print(z)  # 输出 true (1)
+print(x)  # 输出
+
+def leibniz_pi(n_terms):
+    pi = 0.0
+    sign = 1.0
+    print(n_terms)
+    for i in range(n_terms):
+        term = 1 / (2 * i + 1)
+        tmp = sign * term
+        pi = pi + tmp
+        sign = sign * -1
+    print(pi)
+    return 4 * pi
+
+n_terms = 1000000000
+approx_pi = leibniz_pi(n_terms)
+print(approx_pi)

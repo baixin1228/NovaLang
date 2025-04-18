@@ -1,0 +1,1 @@
+sudo apt-get install -y build-essential cmake git llvm-14 llvm-14-dev clang-14 libclang-14-dev
