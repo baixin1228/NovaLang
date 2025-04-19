@@ -2,11 +2,12 @@
 #include <string>
 
 enum class VarType {
-  INT,
-  FLOAT,
-  BOOL,
-  VOID,
-  NONE,
+    VOID,
+    INT,
+    FLOAT,
+    BOOL,
+    STRING,
+    NONE
 };
 
 std::string var_type_to_string(VarType type);

@@ -19,6 +19,7 @@
 #include "While.h"
 #include "Global.h"
 #include "CompoundAssign.h"
+#include "StringLiteral.h"
 #include <iostream>
 #include <memory>
 #include <string>
@@ -29,7 +30,7 @@ int ASTParser::parse() {
 
     while (current().type != TOK_EOF) {
         if (current().type == TOK_NEWLINE || current().type == TOK_DEDENT) {
-            consume(current().type);
+            consume(current().type, __FILE__, __LINE__);
             continue;
         }
         auto stmt = parse_stmt();
@@ -49,7 +50,7 @@ int ASTParser::parse() {
 
 std::unique_ptr<ASTNode> ASTParser::parse_stmt() {
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
     if (current().type == TOK_DEF) {
         return parse_function();
@@ -65,70 +66,81 @@ std::unique_ptr<ASTNode> ASTParser::parse_stmt() {
     }
     if (current().type == TOK_RETURN) {
         int ln = current().line;
-        consume(TOK_RETURN);
+        consume(TOK_RETURN, __FILE__, __LINE__);
         auto value = parse_expr();
         while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE);
+            consume(TOK_NEWLINE, __FILE__, __LINE__);
         }
         return std::make_unique<Return>(ctx, std::move(value), ln);
     }
     if (current().type == TOK_PRINT) {
         int ln = current().line;
-        consume(TOK_PRINT);
-        auto value = parse_expr();
-        while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE);
+        consume(TOK_PRINT, __FILE__, __LINE__);
+        consume(TOK_LPAREN, __FILE__, __LINE__);
+        
+        std::vector<std::unique_ptr<ASTNode>> values;
+        if (current().type != TOK_RPAREN) {
+            values.push_back(parse_expr());
+            while (current().type == TOK_COMMA) {
+                consume(TOK_COMMA, __FILE__, __LINE__);
+                values.push_back(parse_expr());
+            }
         }
-        return std::make_unique<Print>(ctx, std::move(value), ln);
+        
+        consume(TOK_RPAREN, __FILE__, __LINE__);
+        while (current().type == TOK_NEWLINE) {
+            consume(TOK_NEWLINE, __FILE__, __LINE__);
+        }
+        return std::make_unique<Print>(ctx, std::move(values), ln);
     }
     if (current().type == TOK_ID) {
         std::string id = current().value;
         int ln = current().line;
-        consume(TOK_ID);
+        consume(TOK_ID, __FILE__, __LINE__);
         if (current().type == TOK_ASSIGN) {
-            consume(TOK_ASSIGN);
+            consume(TOK_ASSIGN, __FILE__, __LINE__);
             auto value = parse_expr();
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<Assign>(ctx, id, std::move(value), ln);
         }
         if (current().type == TOK_PLUSEQ) {
-            consume(TOK_PLUSEQ);
+            consume(TOK_PLUSEQ, __FILE__, __LINE__);
             auto value = parse_expr();
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<CompoundAssign>(ctx, id, "+=", std::move(value), ln);
         }
         if (current().type == TOK_MINUSEQ) {
-            consume(TOK_MINUSEQ);
+            consume(TOK_MINUSEQ, __FILE__, __LINE__);
             auto value = parse_expr();
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<CompoundAssign>(ctx, id, "-=", std::move(value), ln);
         }
         if (current().type == TOK_STAREQ) {
-            consume(TOK_STAREQ);
+            consume(TOK_STAREQ, __FILE__, __LINE__);
             auto value = parse_expr();
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<CompoundAssign>(ctx, id, "*=", std::move(value), ln);
         }
         if (current().type == TOK_SLASHEQ) {
-            consume(TOK_SLASHEQ);
+            consume(TOK_SLASHEQ, __FILE__, __LINE__);
             auto value = parse_expr();
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<CompoundAssign>(ctx, id, "/=", std::move(value), ln);
         }
         if (current().type == TOK_PLUSPLUS) {
-            consume(TOK_PLUSPLUS);
+            consume(TOK_PLUSPLUS, __FILE__, __LINE__);
             while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE);
+                consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
             return std::make_unique<Increment>(ctx, id, ln);
         }
@@ -140,7 +152,7 @@ std::unique_ptr<ASTNode> ASTParser::parse_stmt() {
     auto expr = parse_expr();
     if (expr) {
         while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE);
+            consume(TOK_NEWLINE, __FILE__, __LINE__);
         }
         return expr;
     }
@@ -149,118 +161,118 @@ std::unique_ptr<ASTNode> ASTParser::parse_stmt() {
 
 std::unique_ptr<ASTNode> ASTParser::parse_function() {
     int ln = current().line;
-    consume(TOK_DEF);
+    consume(TOK_DEF, __FILE__, __LINE__);
     std::string name = current().value;
-    consume(TOK_ID);
-    consume(TOK_LPAREN);
+    consume(TOK_ID, __FILE__, __LINE__);
+    consume(TOK_LPAREN, __FILE__, __LINE__);
     std::vector<std::string> params;
     while (current().type != TOK_RPAREN) {
         params.push_back(current().value);
-        consume(TOK_ID);
-        if (current().type == TOK_COMMA) consume(TOK_COMMA);
+        consume(TOK_ID, __FILE__, __LINE__);
+        if (current().type == TOK_COMMA) consume(TOK_COMMA, __FILE__, __LINE__);
     }
-    consume(TOK_RPAREN);
-    consume(TOK_COLON);
+    consume(TOK_RPAREN, __FILE__, __LINE__);
+    consume(TOK_COLON, __FILE__, __LINE__);
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
-    consume(TOK_INDENT);
+    consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::unique_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
         auto stmt = parse_stmt();
         if (stmt) body.push_back(std::move(stmt));
     }
-    consume(TOK_DEDENT);
+    consume(TOK_DEDENT, __FILE__, __LINE__);
     return std::make_unique<Function>(ctx, name, std::move(params),
                                       std::move(body), ln);
 }
 
 std::unique_ptr<ASTNode> ASTParser::parse_while() {
     int ln = current().line;
-    consume(TOK_WHILE);
+    consume(TOK_WHILE, __FILE__, __LINE__);
     auto condition = parse_expr();
-    consume(TOK_COLON);
+    consume(TOK_COLON, __FILE__, __LINE__);
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
-    consume(TOK_INDENT);
+    consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::unique_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
         auto stmt = parse_stmt();
         if (stmt) body.push_back(std::move(stmt));
     }
-    consume(TOK_DEDENT);
+    consume(TOK_DEDENT, __FILE__, __LINE__);
     return std::make_unique<While>(ctx, std::move(condition), std::move(body),
                                    ln);
 }
 
 std::unique_ptr<ASTNode> ASTParser::parse_for() {
     int ln = current().line;
-    consume(TOK_FOR);
+    consume(TOK_FOR, __FILE__, __LINE__);
     std::string iterator = current().value;
-    consume(TOK_ID);
-    consume(TOK_IN);
-    consume(TOK_RANGE);
-    consume(TOK_LPAREN);
+    consume(TOK_ID, __FILE__, __LINE__);
+    consume(TOK_IN, __FILE__, __LINE__);
+    consume(TOK_RANGE, __FILE__, __LINE__);
+    consume(TOK_LPAREN, __FILE__, __LINE__);
     auto end = parse_expr();
-    consume(TOK_RPAREN);
-    consume(TOK_COLON);
+    consume(TOK_RPAREN, __FILE__, __LINE__);
+    consume(TOK_COLON, __FILE__, __LINE__);
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
-    consume(TOK_INDENT);
+    consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::unique_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
         auto stmt = parse_stmt();
         if (stmt) body.push_back(std::move(stmt));
     }
-    consume(TOK_DEDENT);
+    consume(TOK_DEDENT, __FILE__, __LINE__);
     return std::make_unique<For>(ctx, iterator, std::move(end), std::move(body),
                                  ln);
 }
 
 std::unique_ptr<ASTNode> ASTParser::parse_if() {
     int ln = current().line;
-    consume(TOK_IF);
+    consume(TOK_IF, __FILE__, __LINE__);
     auto condition = parse_expr();
-    consume(TOK_COLON);
+    consume(TOK_COLON, __FILE__, __LINE__);
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
-    consume(TOK_INDENT);
+    consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::unique_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
         auto stmt = parse_stmt();
         if (stmt) body.push_back(std::move(stmt));
     }
-    consume(TOK_DEDENT);
+    consume(TOK_DEDENT, __FILE__, __LINE__);
     std::vector<std::pair<std::unique_ptr<ASTNode>, std::vector<std::unique_ptr<ASTNode>>>> elifs;
     while (current().type == TOK_ELIF) {
         int elif_ln = current().line;
-        consume(TOK_ELIF);
+        consume(TOK_ELIF, __FILE__, __LINE__);
         auto elif_cond = parse_expr();
-        consume(TOK_COLON);
-        consume(TOK_NEWLINE);
-        consume(TOK_INDENT);
+        consume(TOK_COLON, __FILE__, __LINE__);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
+        consume(TOK_INDENT, __FILE__, __LINE__);
         std::vector<std::unique_ptr<ASTNode>> elif_body;
         while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
             auto stmt = parse_stmt();
             if (stmt) elif_body.push_back(std::move(stmt));
         }
-        consume(TOK_DEDENT);
+        consume(TOK_DEDENT, __FILE__, __LINE__);
         elifs.emplace_back(std::move(elif_cond), std::move(elif_body));
     }
     std::vector<std::unique_ptr<ASTNode>> else_body;
     if (current().type == TOK_ELSE) {
-        consume(TOK_ELSE);
-        consume(TOK_COLON);
-        consume(TOK_NEWLINE);
-        consume(TOK_INDENT);
+        consume(TOK_ELSE, __FILE__, __LINE__);
+        consume(TOK_COLON, __FILE__, __LINE__);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
+        consume(TOK_INDENT, __FILE__, __LINE__);
         while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
             auto stmt = parse_stmt();
             if (stmt) else_body.push_back(std::move(stmt));
         }
-        consume(TOK_DEDENT);
+        consume(TOK_DEDENT, __FILE__, __LINE__);
     }
     return std::make_unique<If>(ctx, std::move(condition), std::move(body),
                                 std::move(elifs), std::move(else_body), ln);
@@ -275,7 +287,7 @@ std::unique_ptr<ASTNode> ASTParser::parse_logic_or() {
     while (current().type == TOK_OR) {
         int ln = current().line;
         std::string op = "or";
-        consume(TOK_OR);
+        consume(TOK_OR, __FILE__, __LINE__);
         auto right = parse_logic_and();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
@@ -288,7 +300,7 @@ std::unique_ptr<ASTNode> ASTParser::parse_logic_and() {
     while (current().type == TOK_AND) {
         int ln = current().line;
         std::string op = "and";
-        consume(TOK_AND);
+        consume(TOK_AND, __FILE__, __LINE__);
         auto right = parse_equality();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
@@ -301,7 +313,7 @@ std::unique_ptr<ASTNode> ASTParser::parse_equality() {
     while (current().type == TOK_EQEQ) {
         int ln = current().line;
         std::string op = "==";
-        consume(TOK_EQEQ);
+        consume(TOK_EQEQ, __FILE__, __LINE__);
         auto right = parse_comparison();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
@@ -316,13 +328,13 @@ std::unique_ptr<ASTNode> ASTParser::parse_comparison() {
         std::string op;
         if (current().type == TOK_LT) {
             op = "<";
-            consume(TOK_LT);
+            consume(TOK_LT, __FILE__, __LINE__);
         } else if (current().type == TOK_GT) {
             op = ">";
-            consume(TOK_GT);
+            consume(TOK_GT, __FILE__, __LINE__);
         } else {
             op = ">=";
-            consume(TOK_GTEQ);
+            consume(TOK_GTEQ, __FILE__, __LINE__);
         }
         auto right = parse_term();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
@@ -338,10 +350,10 @@ std::unique_ptr<ASTNode> ASTParser::parse_term() {
         std::string op;
         if (current().type == TOK_PLUS) {
             op = "+";
-            consume(TOK_PLUS);
+            consume(TOK_PLUS, __FILE__, __LINE__);
         } else {
             op = "-";
-            consume(TOK_MINUS);
+            consume(TOK_MINUS, __FILE__, __LINE__);
         }
         auto right = parse_factor();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
@@ -357,10 +369,10 @@ std::unique_ptr<ASTNode> ASTParser::parse_factor() {
         std::string op;
         if (current().type == TOK_STAR) {
             op = "*";
-            consume(TOK_STAR);
+            consume(TOK_STAR, __FILE__, __LINE__);
         } else {
             op = "/";
-            consume(TOK_SLASH);
+            consume(TOK_SLASH, __FILE__, __LINE__);
         }
         auto right = parse_unary();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
@@ -372,7 +384,7 @@ std::unique_ptr<ASTNode> ASTParser::parse_factor() {
 std::unique_ptr<ASTNode> ASTParser::parse_unary() {
     if (current().type == TOK_NOT) {
         int ln = current().line;
-        consume(TOK_NOT);
+        consume(TOK_NOT, __FILE__, __LINE__);
         auto expr = parse_unary();
         return std::make_unique<UnaryOp>(ctx, "not", std::move(expr), ln);
     }
@@ -380,48 +392,54 @@ std::unique_ptr<ASTNode> ASTParser::parse_unary() {
 }
 
 std::unique_ptr<ASTNode> ASTParser::parse_primary() {
+    if (current().type == TOK_STRING) {
+        std::string value = current().string_value;
+        int ln = current().line;
+        consume(TOK_STRING, __FILE__, __LINE__);
+        return std::make_unique<StringLiteral>(ctx, value, ln);
+    }
     if (current().type == TOK_INT) {
         int value = current().int_value;
         int ln = current().line;
-        consume(TOK_INT);
+        consume(TOK_INT, __FILE__, __LINE__);
         return std::make_unique<IntLiteral>(ctx, value, ln);
     }
     if (current().type == TOK_FLOAT) {
         double value = current().float_value;
         int ln = current().line;
-        consume(TOK_FLOAT);
+        consume(TOK_FLOAT, __FILE__, __LINE__);
         return std::make_unique<FloatLiteral>(ctx, value, ln);
     }
     if (current().type == TOK_TRUE) {
         int ln = current().line;
-        consume(TOK_TRUE);
+        consume(TOK_TRUE, __FILE__, __LINE__);
         return std::make_unique<BoolLiteral>(ctx, true, ln);
     }
     if (current().type == TOK_FALSE) {
         int ln = current().line;
-        consume(TOK_FALSE);
+        consume(TOK_FALSE, __FILE__, __LINE__);
         return std::make_unique<BoolLiteral>(ctx, false, ln);
     }
     if (current().type == TOK_ID) {
         std::string name = current().value;
         int ln = current().line;
-        consume(TOK_ID);
+        consume(TOK_ID, __FILE__, __LINE__);
         if (current().type == TOK_LPAREN) {
-            consume(TOK_LPAREN);
+            consume(TOK_LPAREN, __FILE__, __LINE__);
             std::vector<std::unique_ptr<ASTNode>> args;
             while (current().type != TOK_RPAREN) {
                 args.push_back(parse_expr());
-                if (current().type == TOK_COMMA) consume(TOK_COMMA);
+                if (current().type == TOK_COMMA) consume(TOK_COMMA, __FILE__, __LINE__);
             }
-            consume(TOK_RPAREN);
+            consume(TOK_RPAREN, __FILE__, __LINE__);
             return std::make_unique<Call>(ctx, name, std::move(args), ln);
         }
         return std::make_unique<Variable>(ctx, name, ln);
     }
     if (current().type == TOK_LPAREN) {
-        consume(TOK_LPAREN);
+        consume(TOK_LPAREN, __FILE__, __LINE__);
         auto expr = parse_expr();
-        consume(TOK_RPAREN);
+        consume(TOK_RPAREN, __FILE__, __LINE__);
         return expr;
     }
     throw std::runtime_error("Unexpected token: " + current().value + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
@@ -430,12 +448,12 @@ std::unique_ptr<ASTNode> ASTParser::parse_primary() {
 
 std::unique_ptr<ASTNode> ASTParser::parse_global() {
     int ln = current().line;
-    consume(TOK_GLOBAL);
+    consume(TOK_GLOBAL, __FILE__, __LINE__);
     std::vector<std::string> var_names;
     var_names.push_back(current().value);
-    consume(TOK_ID);
+    consume(TOK_ID, __FILE__, __LINE__);
     while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE);
+        consume(TOK_NEWLINE, __FILE__, __LINE__);
     }
     return std::make_unique<Global>(ctx, std::move(var_names), ln);
 }

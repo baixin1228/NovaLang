@@ -20,6 +20,9 @@ int CodeGen::generate_global_variable(Assign &assign) {
     case VarType::BOOL:
       ty = builder.getInt1Ty();
       break;
+    case VarType::STRING:
+      ty = builder.getInt8PtrTy();
+      break;
     default:
       ty = builder.getVoidTy();
       break;
@@ -59,6 +62,9 @@ void CodeGen::GenLocalVar(Assign& assign) {
             break;
         case VarType::BOOL:
             ty = builder.getInt1Ty();
+            break;
+        case VarType::STRING:
+            ty = builder.getInt8PtrTy();
             break;
         default:
             ty = builder.getVoidTy();

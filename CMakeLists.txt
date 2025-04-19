@@ -97,6 +97,7 @@ set(AST_SOURCES
     AST/If.cpp
     AST/Increment.cpp
     AST/IntLiteral.cpp
+    AST/StringLiteral.cpp
     AST/Print.cpp
     AST/Return.cpp
     AST/UnaryOp.cpp

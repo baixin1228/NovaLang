@@ -16,6 +16,57 @@
 #include "Variable.h"
 #include "While.h"
 #include "AST/CompoundAssign.h"
+#include "AST/ASTNode.h"
+
+void CodeGen::generatePrintStatement(Print *prt) {
+    // 创建格式化字符串和参数列表
+    std::string format_str;
+    std::vector<llvm::Value *> printf_args;
+    
+    // 遍历所有要打印的值
+    for (const auto& expr : prt->values) {
+        auto value = visit_expr(*expr);
+        VarType type = visit_expr_type(*expr);
+        
+        // 根据类型添加对应的格式化字符串
+        switch (type) {
+            case VarType::INT:
+                format_str += "%ld ";
+                printf_args.push_back(value);
+                break;
+            case VarType::FLOAT:
+                format_str += "%.18lf ";
+                printf_args.push_back(value);
+                break;
+            case VarType::STRING:
+                format_str += "%s ";
+                printf_args.push_back(value);
+                break;
+            case VarType::BOOL:
+                format_str += "%d ";
+                printf_args.push_back(value);
+                break;
+            default:
+                ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "不支持的打印类型: " + var_type_to_string(type),
+                    prt->line, __FILE__, __LINE__);
+                return;
+        }
+    }
+    
+    // 添加换行符
+    format_str += "\n";
+    
+    // 创建格式化字符串的全局变量
+    auto fmt = builder.CreateGlobalStringPtr(format_str, "fmt_str");
+    
+    // 构建printf参数列表
+    std::vector<llvm::Value *> args = {fmt};
+    args.insert(args.end(), printf_args.begin(), printf_args.end());
+    
+    // 调用printf
+    builder.CreateCall(printf_func, args);
+}
 
 int CodeGen::visit_stmt(ASTNode& node) {
     // Set debug location for each statement only if debug info is enabled
@@ -227,21 +278,7 @@ int CodeGen::visit_stmt(ASTNode& node) {
       auto value = visit_expr(*ret->value);
       builder.CreateRet(value);
     } else if (auto *prt = dynamic_cast<Print *>(&node)) {
-      auto value = visit_expr(*prt->value);
-      VarType type = visit_expr_type(*prt->value);
-      auto fmt =
-          type == VarType::INT     ? builder.CreateGlobalStringPtr("%ld\n", "fmt_int")
-          : type == VarType::FLOAT ? builder.CreateGlobalStringPtr("%.18lf\n", "fmt_float")
-                            : builder.CreateGlobalStringPtr("%d\n", "fmt_bool");
-      std::vector<llvm::Value *> args = {fmt};
-      if (type == VarType::INT) {
-        args.push_back(value);
-      } else if (type == VarType::FLOAT) {
-        args.push_back(value);
-      } else { // bool
-        args.push_back(value);
-      }
-      builder.CreateCall(printf_func, args);
+      generatePrintStatement(prt);
     } else if (auto *call = dynamic_cast<Call *>(&node)) {
       visit_expr(*call);
     } else if (auto *call = dynamic_cast<Global *>(&node)) {

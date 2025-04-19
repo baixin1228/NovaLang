@@ -42,6 +42,38 @@ std::vector<Token> Lexer::tokenize() {
             }
             continue;
         }
+        if (c == '"' || c == '\'') {
+            char quote = c;
+            pos++; // Skip opening quote
+            std::string str;
+            while (pos < input.size() && peek() != quote) {
+                if (peek() == '\\') {
+                    pos++; // Skip backslash
+                    if (pos < input.size()) {
+                        switch (peek()) {
+                            case 'n': str += '\n'; break;
+                            case 't': str += '\t'; break;
+                            case 'r': str += '\r'; break;
+                            case '\\': str += '\\'; break;
+                            case '"': str += '"'; break;
+                            case '\'': str += '\''; break;
+                            default: str += peek(); break;
+                        }
+                        pos++;
+                    }
+                } else {
+                    str += peek();
+                    pos++;
+                }
+            }
+            if (pos >= input.size()) {
+                ctx.add_error(ErrorHandler::ErrorLevel::LEXICAL, "未闭合的字符串", line, __FILE__, __LINE__);
+            } else {
+                pos++; // Skip closing quote
+                tokens.emplace_back(TOK_STRING, str, line, true);
+            }
+            continue;
+        }
         if (std::isalpha(c) || c == '_') {
             std::string id;
             while (pos < input.size() && (std::isalnum(peek()) || peek() == '_'))

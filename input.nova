@@ -52,3 +52,6 @@ def leibniz_pi(n_terms):
 n_terms = 1000000000
 approx_pi = leibniz_pi(n_terms)
 print(approx_pi)
+
+s = "Hello Word"
+print(s, approx_pi)

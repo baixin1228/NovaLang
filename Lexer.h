@@ -17,7 +17,7 @@ enum TokenType {
     TOK_AND, TOK_OR, TOK_NOT, TOK_DEF, TOK_RETURN, TOK_WHILE, TOK_COLON,
     TOK_LPAREN, TOK_RPAREN, TOK_COMMA, TOK_NEWLINE, TOK_INDENT, TOK_DEDENT,
     TOK_EOF, TOK_PRINT, TOK_FOR, TOK_IN, TOK_RANGE, TOK_IF, TOK_ELSE, TOK_ELIF,
-    TOK_GLOBAL, TOK_PLUSEQ, TOK_MINUSEQ, TOK_STAREQ, TOK_SLASHEQ
+    TOK_GLOBAL, TOK_PLUSEQ, TOK_MINUSEQ, TOK_STAREQ, TOK_SLASHEQ, TOK_STRING
 };
 
 struct Token {
@@ -25,11 +25,14 @@ struct Token {
     std::string value;
     long int_value = 0;
     double float_value = 0.0;
+    std::string string_value;
     int line = 0;
 
     Token(TokenType t, std::string v = "", int ln = 0) : type(t), value(v), line(ln) {}
     Token(TokenType t, long i, int ln) : type(t), int_value(i), line(ln) {}
     Token(TokenType t, double f, int ln) : type(t), float_value(f), line(ln) {}
+    Token(TokenType t, const std::string& s, int ln, bool is_string) 
+        : type(t), string_value(s), line(ln) {}
 };
 
 // 词法分析

@@ -2,12 +2,16 @@
 #include "IntLiteral.h"
 #include "FloatLiteral.h"
 #include "BoolLiteral.h"
+#include "StringLiteral.h"
 #include "Variable.h"
 #include "BinOp.h"
 #include "UnaryOp.h"
 #include "Call.h"
 
 llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
+    if (auto* str_lit = dynamic_cast<StringLiteral*>(&node)) {
+        return builder.CreateGlobalStringPtr(str_lit->value);
+    }
     if (auto* int_lit = dynamic_cast<IntLiteral*>(&node)) {
       if (expected_type != VarType::NONE && expected_type == VarType::FLOAT)
       {
@@ -32,6 +36,11 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
 
         VarType type = var->lookup_var_type(var->name);
         switch (type) {
+            case VarType::STRING: {
+                auto load = builder.CreateLoad(builder.getInt8PtrTy(), ptr, var->name + "_load");
+                load->setAlignment(llvm::Align(get_type_align(type)));
+                return load;
+            }
             case VarType::INT: {
                 auto load = builder.CreateLoad(builder.getInt64Ty(), ptr, var->name + "_load");
                 load->setAlignment(llvm::Align(get_type_align(type)));
@@ -165,6 +174,9 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
 }
 
 VarType CodeGen::visit_expr_type(ASTNode& node) {
+    if (auto* str_lit = dynamic_cast<StringLiteral*>(&node)) {
+        return VarType::STRING;
+    }
     if (auto* int_lit = dynamic_cast<IntLiteral*>(&node)) {
         return VarType::INT;
     }

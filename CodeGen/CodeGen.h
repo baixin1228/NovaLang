@@ -35,6 +35,7 @@
 #include "Context.h"
 #include "Function.h"
 #include "Assign.h"
+#include "Print.h"
 // 获取类型对齐值
 inline uint32_t get_type_align(VarType type) {
   switch (type) {
@@ -43,6 +44,8 @@ inline uint32_t get_type_align(VarType type) {
     return 8;
   case VarType::BOOL:
     return 1;
+  case VarType::STRING:
+    return 8; // Pointer alignment
   default:
     std::cerr << "Unknown type: " << var_type_to_string(type) << std::endl;
     return 0;
@@ -70,6 +73,8 @@ class CodeGen {
   llvm::DICompileUnit *dbg_compile_unit;
   std::string source_filename; // 源文件名
   bool generate_debug_info;    // 新增：控制是否生成调试信息
+
+  void generatePrintStatement(Print *prt);
 
 public:
   explicit CodeGen(Context &ctx, bool debug = false);

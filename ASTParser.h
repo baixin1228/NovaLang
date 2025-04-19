@@ -15,14 +15,15 @@ class ASTParser {
   Context &ctx;
 
   Token &current() { return tokens[pos]; }
-  void consume(TokenType type) {
+  void consume(TokenType type, std::string file, int line) {
     if (current().type != type) {
-      ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
-                    "期望 " + token_type_to_string(type) + " 得到 " +
-                        token_type_to_string(current().type),
-                    current().line, __FILE__, __LINE__);
-      throw std::runtime_error("期望 " + token_type_to_string(type) + " 得到 " +
-                                   token_type_to_string(current().type) + " code:" + std::to_string(current().line) + " line:" + std::to_string(__LINE__));
+      // ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
+      //               "期望 " + token_type_to_string(type) + " 得到 " +
+      //                   token_type_to_string(current().type),
+      //               current().line, file.c_str(), line);
+        throw std::runtime_error("期望 " + token_type_to_string(type) + " 得到 " +
+                                    token_type_to_string(current().type) + 
+                                    " source_code:" + std::to_string(current().line) + " file:" + file + " line:" + std::to_string(line));
     }
     pos++;
   }
