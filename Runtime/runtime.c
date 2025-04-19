@@ -159,4 +159,27 @@ void print_unicode_string(const unicode_string* str) {
 void println_unicode_string(const unicode_string* str) {
     print_unicode_string(str);
     printf("\n");
+}
+
+// 连接两个Unicode字符串
+unicode_string* concat_unicode_strings(const unicode_string* str1, const unicode_string* str2) {
+    if (!str1 || !str2) return NULL;
+    
+    // 计算连接后的总长度
+    int32_t total_length = str1->length + str2->length;
+    
+    // 分配新的unicode_string内存，大小为结构体 + 字符数据
+    unicode_string* result = (unicode_string*)malloc(sizeof(unicode_string) + total_length * sizeof(UChar));
+    if (!result) return NULL;
+    
+    // 设置长度
+    result->length = total_length;
+    
+    // 复制第一个字符串的内容
+    memcpy(result->data, str1->data, str1->length * sizeof(UChar));
+    
+    // 复制第二个字符串的内容（紧接着第一个字符串后面）
+    memcpy(result->data + str1->length, str2->data, str2->length * sizeof(UChar));
+    
+    return result;
 } 

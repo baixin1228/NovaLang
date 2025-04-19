@@ -31,7 +31,8 @@ std::vector<std::string> RuntimeManager::getRuntimeFunctionNames() const {
         "unicode_string_to_encoding",
         "free_unicode_string",
         "print_unicode_string",
-        "println_unicode_string"
+        "println_unicode_string",
+        "concat_unicode_strings"
     };
 }
 
@@ -73,6 +74,17 @@ llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) 
         return llvm::FunctionType::get(
             builder.getVoidTy(),  // return type: void
             {llvm::PointerType::get(unicode_string_type, 0)},  // const unicode_string* str
+            false
+        );
+    }
+    else if (name == "concat_unicode_strings") {
+        std::vector<llvm::Type*> params = {
+            llvm::PointerType::get(unicode_string_type, 0),  // const unicode_string* str1
+            llvm::PointerType::get(unicode_string_type, 0)   // const unicode_string* str2
+        };
+        return llvm::FunctionType::get(
+            llvm::PointerType::get(unicode_string_type, 0),  // return type: unicode_string*
+            params,
             false
         );
     }

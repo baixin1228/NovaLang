@@ -59,7 +59,7 @@ int BinOp::visit_expr(VarType &result) {
                     line, __FILE__, __LINE__);
       return -1;
     }
-    if (left_type != VarType::INT && left_type != VarType::FLOAT) {
+    if (left_type != VarType::INT && left_type != VarType::FLOAT && left_type != VarType::STRING) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "无效类型用于 " + op + ": " + var_type_to_string(left_type), line, __FILE__, __LINE__);
       return -1;

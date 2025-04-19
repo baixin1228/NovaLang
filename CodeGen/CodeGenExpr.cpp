@@ -159,39 +159,86 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
       VarType right_expected_type = VarType::NONE;
       auto left_type = visit_expr_type(*binop->left);
       auto right_type = visit_expr_type(*binop->right);
-      if (expected_type != VarType::NONE) {
-        left_expected_type = expected_type;
-        right_expected_type = expected_type;
-        type = expected_type;
-      }
-      if (left_type != right_type) {
-        if (left_type == VarType::FLOAT) {
-          right_expected_type = VarType::FLOAT;
+      
+      // 检查是否是字符串连接操作
+      bool is_string_concat = binop->op == "+" && 
+          (left_type == VarType::STRING || right_type == VarType::STRING);
+      
+      // 如果不是字符串连接，按原逻辑处理类型转换
+      if (!is_string_concat) {
+        if (expected_type != VarType::NONE) {
+          left_expected_type = expected_type;
+          right_expected_type = expected_type;
+          type = expected_type;
         }
-        if (right_type == VarType::FLOAT) {
+        if (left_type != right_type) {
+          if (left_type == VarType::FLOAT) {
+            right_expected_type = VarType::FLOAT;
+          }
+          if (right_type == VarType::FLOAT) {
+            left_expected_type = VarType::FLOAT;
+          }
+          type = VarType::FLOAT;
+        }
+        if (binop->op == "/") {
           left_expected_type = VarType::FLOAT;
+          right_expected_type = VarType::FLOAT;
+          type = VarType::FLOAT;
         }
-        type = VarType::FLOAT;
+      } else {
+        // 对于字符串连接，设置返回类型为STRING
+        type = VarType::STRING;
       }
-      if (binop->op == "/") {
-        left_expected_type = VarType::FLOAT;
-        right_expected_type = VarType::FLOAT;
-        type = VarType::FLOAT;
-      }
+      
       auto left = visit_expr(*binop->left, left_expected_type);
       auto right = visit_expr(*binop->right, right_expected_type);
-        if (left == nullptr || right == nullptr) {
+      
+      if (left == nullptr || right == nullptr) {
         throw std::runtime_error(
             "未知表达式 code:" + std::to_string(node.line) +
             " line:" + std::to_string(__LINE__));
         return nullptr;
+      }
+      
+      if (binop->op == "+") {
+        // 处理字符串连接
+        if (is_string_concat) {
+          // 如果左操作数不是字符串，需要将其转换为字符串
+          if (left_type != VarType::STRING) {
+            // 创建一个临时字符串值
+            // 这里需要根据实际情况实现将不同类型转换为字符串的逻辑
+            // 目前简单处理：只支持字符串+字符串
+            throw std::runtime_error("不支持的操作: 非字符串 + 字符串 code:" + 
+                                    std::to_string(node.line) + " line:" + 
+                                    std::to_string(__LINE__));
+          }
+          
+          // 如果右操作数不是字符串，需要将其转换为字符串
+          if (right_type != VarType::STRING) {
+            // 同上，需要实现类型转换
+            throw std::runtime_error("不支持的操作: 字符串 + 非字符串 code:" + 
+                                    std::to_string(node.line) + " line:" + 
+                                    std::to_string(__LINE__));
+          }
+          
+          // 两者都是字符串，调用运行时库进行连接
+          auto concat_func = runtime_manager->getRuntimeFunction("concat_unicode_strings");
+          if (!concat_func) {
+            throw std::runtime_error("无法获取字符串连接函数 code:" + 
+                                    std::to_string(node.line) + " line:" + 
+                                    std::to_string(__LINE__));
+          }
+          
+          // 调用concat_unicode_strings函数连接字符串
+          return builder.CreateCall(concat_func, {left, right}, "str_concat");
         }
-        if (binop->op == "+") {
-            return type == VarType::INT ?
-                builder.CreateAdd(left, right, "add") :
-                builder.CreateFAdd(left, right, "fadd");
-        }
-        if (binop->op == "-") {
+        
+        // 非字符串加法处理
+        return type == VarType::INT ?
+            builder.CreateAdd(left, right, "add") :
+            builder.CreateFAdd(left, right, "fadd");
+      }
+      if (binop->op == "-") {
             return type == VarType::INT ?
                 builder.CreateSub(left, right, "sub") :
                 builder.CreateFSub(left, right, "fsub");
@@ -283,14 +330,20 @@ VarType CodeGen::visit_expr_type(ASTNode& node) {
     }
     if (auto* binop = dynamic_cast<BinOp*>(&node)) {
       VarType left_type = visit_expr_type(*binop->left);
+      VarType right_type = visit_expr_type(*binop->right);
+
       if (binop->op == "==" || binop->op == "<" || binop->op == ">" ||
           binop->op == ">=") {
         return VarType::BOOL;
-        }
-        if (binop->op == "and" || binop->op == "or") {
-            return VarType::BOOL;
-        }
-        return left_type;
+      }
+      if (binop->op == "and" || binop->op == "or") {
+        return VarType::BOOL;
+      }
+      // 处理字符串连接
+      if (binop->op == "+" && (left_type == VarType::STRING || right_type == VarType::STRING)) {
+        return VarType::STRING;
+      }
+      return left_type;
     }
     if (auto* unary = dynamic_cast<UnaryOp*>(&node)) {
         if (unary->op == "not") return VarType::BOOL;

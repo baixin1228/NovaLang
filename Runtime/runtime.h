@@ -36,6 +36,9 @@ void print_unicode_string(const unicode_string* str);
 // 打印Unicode字符串并换行
 void println_unicode_string(const unicode_string* str);
 
+// 连接两个Unicode字符串
+unicode_string* concat_unicode_strings(const unicode_string* str1, const unicode_string* str2);
+
 #ifdef __cplusplus
 }
 #endif

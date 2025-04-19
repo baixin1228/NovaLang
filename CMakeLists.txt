@@ -139,7 +139,7 @@ target_link_libraries(novalang_runtime PRIVATE
 )
 
 # 添加可执行文件
-add_executable(compiler 
+add_executable(nova 
     main.cpp 
     Error.cpp 
     Context.cpp 
@@ -151,12 +151,12 @@ add_executable(compiler
 )
 
 # 为编译器目标设置特定的编译定义
-target_compile_definitions(compiler PRIVATE
+target_compile_definitions(nova PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
 )
 
 # 链接 LLVM 库和 ICU 库
-target_link_libraries(compiler PRIVATE 
+target_link_libraries(nova PRIVATE 
     ${llvm_libs} 
     ICU::uc 
     ICU::i18n
