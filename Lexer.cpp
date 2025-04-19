@@ -113,9 +113,19 @@ std::vector<Token> Lexer::tokenize() {
             pos += 2;
             continue;
         }
+        if (c == '+' && pos + 1 < input.size() && input[pos + 1] == '=') {
+            tokens.emplace_back(TOK_PLUSEQ, "+=", line);
+            pos += 2;
+            continue;
+        }
         if (c == '+') {
             tokens.emplace_back(TOK_PLUS, "+", line);
             pos++;
+            continue;
+        }
+        if (c == '-' && pos + 1 < input.size() && input[pos + 1] == '=') {
+            tokens.emplace_back(TOK_MINUSEQ, "-=", line);
+            pos += 2;
             continue;
         }
         if (c == '-') {
@@ -123,9 +133,19 @@ std::vector<Token> Lexer::tokenize() {
             pos++;
             continue;
         }
+        if (c == '*' && pos + 1 < input.size() && input[pos + 1] == '=') {
+            tokens.emplace_back(TOK_STAREQ, "*=", line);
+            pos += 2;
+            continue;
+        }
         if (c == '*') {
             tokens.emplace_back(TOK_STAR, "*", line);
             pos++;
+            continue;
+        }
+        if (c == '/' && pos + 1 < input.size() && input[pos + 1] == '=') {
+            tokens.emplace_back(TOK_SLASHEQ, "/=", line);
+            pos += 2;
             continue;
         }
         if (c == '/') {
@@ -240,6 +260,10 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_ELSE: return "TOK_ELSE";
         case TOK_ELIF: return "TOK_ELIF";
         case TOK_GLOBAL: return "TOK_GLOBAL";
+        case TOK_PLUSEQ: return "TOK_PLUSEQ";
+        case TOK_MINUSEQ: return "TOK_MINUSEQ";
+        case TOK_STAREQ: return "TOK_STAREQ";
+        case TOK_SLASHEQ: return "TOK_SLASHEQ";
         default: return "UNKNOWN";
     }
 }

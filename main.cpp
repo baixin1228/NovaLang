@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "ASTParser.h"
-#include "CodeGen.h"
+#include "CodeGen/CodeGen.h"
 #include "Context.h"
 #include "Error.h"
 #include "Lexer.h"

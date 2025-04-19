@@ -18,6 +18,7 @@
 #include "Variable.h"
 #include "While.h"
 #include "Global.h"
+#include "CompoundAssign.h"
 #include <iostream>
 #include <memory>
 #include <string>
@@ -91,6 +92,38 @@ std::unique_ptr<ASTNode> ASTParser::parse_stmt() {
                 consume(TOK_NEWLINE);
             }
             return std::make_unique<Assign>(ctx, id, std::move(value), ln);
+        }
+        if (current().type == TOK_PLUSEQ) {
+            consume(TOK_PLUSEQ);
+            auto value = parse_expr();
+            while (current().type == TOK_NEWLINE) {
+                consume(TOK_NEWLINE);
+            }
+            return std::make_unique<CompoundAssign>(ctx, id, "+=", std::move(value), ln);
+        }
+        if (current().type == TOK_MINUSEQ) {
+            consume(TOK_MINUSEQ);
+            auto value = parse_expr();
+            while (current().type == TOK_NEWLINE) {
+                consume(TOK_NEWLINE);
+            }
+            return std::make_unique<CompoundAssign>(ctx, id, "-=", std::move(value), ln);
+        }
+        if (current().type == TOK_STAREQ) {
+            consume(TOK_STAREQ);
+            auto value = parse_expr();
+            while (current().type == TOK_NEWLINE) {
+                consume(TOK_NEWLINE);
+            }
+            return std::make_unique<CompoundAssign>(ctx, id, "*=", std::move(value), ln);
+        }
+        if (current().type == TOK_SLASHEQ) {
+            consume(TOK_SLASHEQ);
+            auto value = parse_expr();
+            while (current().type == TOK_NEWLINE) {
+                consume(TOK_NEWLINE);
+            }
+            return std::make_unique<CompoundAssign>(ctx, id, "/=", std::move(value), ln);
         }
         if (current().type == TOK_PLUSPLUS) {
             consume(TOK_PLUSPLUS);

@@ -19,6 +19,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG")
 # 添加头文件搜索路径
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/AST)
+include_directories(${CMAKE_SOURCE_DIR}/CodeGen)
 
 # 查找 LLVM
 find_package(LLVM 14 REQUIRED CONFIG)
@@ -85,6 +86,7 @@ set(AST_SOURCES
     AST/Common.cpp
     AST/ASTNode.cpp
     AST/Assign.cpp
+    AST/CompoundAssign.cpp
     AST/BinOp.cpp
     AST/BoolLiteral.cpp
     AST/Call.cpp
@@ -102,6 +104,16 @@ set(AST_SOURCES
     AST/While.cpp
 )
 
+# 设置 CodeGen 源文件
+set(CODEGEN_SOURCES
+    CodeGen/CodeGen.cpp
+    CodeGen/CodeGenCore.cpp
+    CodeGen/CodeGenExpr.cpp
+    CodeGen/CodeGenStmt.cpp
+    CodeGen/CodeGenFunction.cpp
+    CodeGen/CodeGenVar.cpp
+)
+
 # 添加可执行文件
 add_executable(compiler 
     main.cpp 
@@ -110,7 +122,7 @@ add_executable(compiler
     ASTParser.cpp
     Lexer.cpp 
     TypeChecker.cpp 
-    CodeGen.cpp
+    ${CODEGEN_SOURCES}
     ${AST_SOURCES}
 )
 
