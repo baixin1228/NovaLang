@@ -46,7 +46,8 @@ def leibniz_pi(n_terms):
         tmp = sign * term
         pi += tmp
         sign = sign * -1
-    print(pi)
+    ss = "mem free test"
+    print(ss)
     return 4 * pi
 
 n_terms = 1000000000

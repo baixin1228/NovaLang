@@ -15,7 +15,7 @@ private:
     void* runtime_lib;
     
     // 运行时类型
-    llvm::StructType* unicode_string_type;
+    llvm::StructType* nova_memory_block_type;
     
     // 运行时函数
     std::map<std::string, llvm::Function*> runtime_functions;
@@ -34,7 +34,7 @@ public:
     bool initialize();
     
     // 获取运行时类型
-    llvm::StructType* getUnicodeStringType() const { return unicode_string_type; }
+    llvm::StructType* getNovaMemoryBlockType() const { return nova_memory_block_type; }
     
     // 获取运行时函数
     llvm::Function* getRuntimeFunction(const std::string& name);
@@ -47,6 +47,4 @@ public:
     
     // 获取所有运行时函数名称
     std::vector<std::string> getRuntimeFunctionNames() const;
-
-    size_t getUnicodeStringSize() { return sizeof(int32_t) + sizeof(void*); }  // length + data pointer
 }; 

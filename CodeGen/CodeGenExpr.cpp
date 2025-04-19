@@ -22,76 +22,48 @@ llvm::Value* CodeGen::handleStringLiteral(StringLiteral* str_lit) {
     // 获取Unicode字符串
     const icu::UnicodeString& unicode_str = str_lit->get_unicode();
     
-    // 创建unicode_string结构体类型
-    llvm::StructType* unicode_string_type = runtime_manager->getUnicodeStringType();
-    
-    // 使用malloc为unicode_string结构体分配内存 (包括柔性数组部分)
-    llvm::Function* malloc_func = module->getFunction("malloc");
-    if (!malloc_func) {
-        // 声明malloc函数
-        llvm::FunctionType* malloc_type = llvm::FunctionType::get(
-            builder.getInt8PtrTy(),  // 返回类型为void*
-            {builder.getInt64Ty()},  // 参数类型为size_t
-            false
-        );
-        malloc_func = llvm::Function::Create(
-            malloc_type,
-            llvm::Function::ExternalLinkage,
-            "malloc",
-            module.get()
-        );
-    }
-    
-    // 计算需要分配的总内存大小：结构体大小 + 字符数据大小
-    // sizeof(unicode_string) + length * sizeof(UChar)
-    llvm::Value* string_length = llvm::ConstantInt::get(builder.getInt32Ty(), unicode_str.length());
-    llvm::Value* struct_size = llvm::ConstantInt::get(builder.getInt64Ty(), sizeof(int32_t)); // 结构体头部大小
-    llvm::Value* char_size = llvm::ConstantInt::get(builder.getInt64Ty(), sizeof(UChar));     // 每个字符大小
-    llvm::Value* data_size = builder.CreateMul(
-        builder.CreateZExt(string_length, builder.getInt64Ty()),
-        char_size,
-        "data_size"
-    );
-    llvm::Value* total_size = builder.CreateAdd(struct_size, data_size, "total_size");
-    
-    // 分配内存
-    llvm::Value* struct_malloc = builder.CreateCall(malloc_func, {total_size}, "unicode_string_malloc");
-    
-    // 将void*类型转换为unicode_string*类型
-    llvm::Value* unicode_string_ptr = builder.CreateBitCast(
-        struct_malloc,
-        llvm::PointerType::get(unicode_string_type, 0),
-        "unicode_string_ptr"
-    );
-    
-    // 设置length字段
-    llvm::Value* length_ptr = builder.CreateStructGEP(unicode_string_type, unicode_string_ptr, 0, "length_ptr");
-    builder.CreateStore(string_length, length_ptr);
-    
-    // 获取data数组的起始位置 (紧跟在length字段之后)
-    llvm::Value* data_array_ptr = builder.CreateStructGEP(unicode_string_type, unicode_string_ptr, 1, "data_array_ptr");
-    
-    // 将Unicode数据复制到data数组中
-    const UChar* source = unicode_str.getBuffer();
+    // 创建包含Unicode数据的全局常量数组
+    llvm::Constant* chars_array = nullptr;
+    std::vector<llvm::Constant*> chars;
     for (int i = 0; i < unicode_str.length(); i++) {
-        // 创建数组元素访问
-        std::vector<llvm::Value*> indices = {
-            llvm::ConstantInt::get(builder.getInt32Ty(), 0),  // 结构体索引
-            llvm::ConstantInt::get(builder.getInt32Ty(), i)   // 数组索引
-        };
-        llvm::Value* elem_ptr = builder.CreateInBoundsGEP(
-            data_array_ptr->getType()->getPointerElementType(),
-            data_array_ptr, 
-            indices, 
-            "char_ptr"
-        );
-        builder.CreateStore(llvm::ConstantInt::get(builder.getInt16Ty(), source[i]), elem_ptr);
+        chars.push_back(llvm::ConstantInt::get(builder.getInt16Ty(), unicode_str.charAt(i)));
     }
     
-    // 将unicode_string指针存入字符串池
-    string_pool[str_key] = unicode_string_ptr;
+    // 创建UChar数组类型和常量数组
+    llvm::ArrayType* char_array_type = llvm::ArrayType::get(builder.getInt16Ty(), chars.size());
+    chars_array = llvm::ConstantArray::get(char_array_type, chars);
     
-    return unicode_string_ptr;
+    // 将数组存储为全局变量以便使用
+    std::string array_name = "unicode_chars_" + std::to_string(string_pool.size());
+    auto global_array = new llvm::GlobalVariable(
+        *module,
+        char_array_type,
+        true, // 是常量
+        llvm::GlobalValue::PrivateLinkage,
+        chars_array,
+        array_name
+    );
+    
+    // 创建指向数组的指针
+    llvm::Value* array_ptr = builder.CreateBitCast(
+        global_array, 
+        llvm::PointerType::get(builder.getInt16Ty(), 0),
+        "unicode_data_ptr"
+    );
+    
+    // 使用运行时库函数创建Unicode字符串
+    auto create_func = runtime_manager->getRuntimeFunction("create_string_from_chars");
+    llvm::Value* length = llvm::ConstantInt::get(builder.getInt32Ty(), unicode_str.length());
+    llvm::Value* memory_block = builder.CreateCall(
+        create_func,
+        {array_ptr, length},
+        "create_string"
+    );
+    
+    // 将指针存入字符串池
+    string_pool[str_key] = memory_block;
+    
+    return memory_block;
 }
 
 llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
@@ -123,8 +95,8 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
         VarType type = var->lookup_var_type(var->name);
         switch (type) {
             case VarType::STRING: {
-                auto unicode_string_ptr_type = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
-                auto load = builder.CreateLoad(unicode_string_ptr_type, ptr, var->name + "_load");
+                auto memory_block_ptr_type = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
+                auto load = builder.CreateLoad(memory_block_ptr_type, ptr, var->name + "_load");
                 load->setAlignment(llvm::Align(get_type_align(type)));
                 return load;
             }
@@ -222,14 +194,14 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
           }
           
           // 两者都是字符串，调用运行时库进行连接
-          auto concat_func = runtime_manager->getRuntimeFunction("concat_unicode_strings");
+          auto concat_func = runtime_manager->getRuntimeFunction("concat_strings");
           if (!concat_func) {
             throw std::runtime_error("无法获取字符串连接函数 code:" + 
                                     std::to_string(node.line) + " line:" + 
                                     std::to_string(__LINE__));
           }
           
-          // 调用concat_unicode_strings函数连接字符串
+          // 调用concat_strings函数连接字符串
           return builder.CreateCall(concat_func, {left, right}, "str_concat");
         }
         

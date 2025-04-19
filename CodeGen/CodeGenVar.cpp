@@ -21,7 +21,7 @@ int CodeGen::generate_global_variable(Assign &assign) {
       ty = builder.getInt1Ty();
       break;
     case VarType::STRING:
-      ty = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
+      ty = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
       break;
     default:
       ty = builder.getVoidTy();
@@ -64,7 +64,7 @@ void CodeGen::GenLocalVar(Assign& assign) {
             ty = builder.getInt1Ty();
             break;
         case VarType::STRING:
-            ty = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
+            ty = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
             break;
         default:
             ty = builder.getVoidTy();

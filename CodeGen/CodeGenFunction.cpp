@@ -8,6 +8,7 @@
 int CodeGen::generate_function(Function &func) {
   std::cout << "==== Generating function: " << func.name
             << " ====" << std::endl;
+  
   if (!ctx.has_func(func.name)) {
     throw std::runtime_error("未定义函数: " + func.name +
                              " code:" + std::to_string(func.line) +

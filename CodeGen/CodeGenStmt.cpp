@@ -40,17 +40,17 @@ void CodeGen::generatePrintStatement(Print *prt) {
                 break;
             case VarType::STRING: {
                 // 对于字符串，调用运行时库的转换函数
-                auto to_system_func = runtime_manager->getRuntimeFunction("unicode_string_to_system");
+                auto to_system_func = runtime_manager->getRuntimeFunction("string_to_system");
                 if (!to_system_func) {
-                    auto unicode_str_ptr_type = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
+                    auto memory_block_ptr_type = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
                     to_system_func = llvm::Function::Create(
                         llvm::FunctionType::get(
                             builder.getInt8PtrTy(),  // 返回 char*
-                            {unicode_str_ptr_type},  // 参数是 const unicode_string*
+                            {memory_block_ptr_type},  // 参数是 const nova_memory_block*
                             false
                         ),
                         llvm::Function::ExternalLinkage,
-                        "unicode_string_to_system",
+                        "string_to_system",
                         module.get()
                     );
                 }
@@ -109,12 +109,34 @@ int CodeGen::visit_stmt(ASTNode& node) {
                                    " line:" + std::to_string(__LINE__));
         }
         auto value = visit_expr(*assign->value, type);
+        
+        // 如果是STRING类型（nova_memory_block），调用引用计数增加函数
+        if (type == VarType::STRING) {
+            // 先获取内存管理函数
+            auto retain_func = runtime_manager->getRuntimeFunction("nova_memory_retain");
+            if (!retain_func) {
+                throw std::runtime_error("无法获取内存管理函数: nova_memory_retain" + 
+                                        std::to_string(node.line) + " line:" + 
+                                        std::to_string(__LINE__));
+            }
+            
+            // 调用引用计数增加函数
+            builder.CreateCall(retain_func, {value});
+        }
+        
         auto str = builder.CreateStore(value, ptr);
         str->setAlignment(llvm::Align(get_type_align(type)));
     } else if (auto* comp_assign = dynamic_cast<CompoundAssign*>(&node)) {
         VarType type = comp_assign->lookup_var_type(comp_assign->var);
         if (type == VarType::NONE) {
             throw std::runtime_error("未定义的变量: " + comp_assign->var + " code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
+        }
+
+        // 字符串类型不支持复合赋值运算
+        if (type == VarType::STRING) {
+            throw std::runtime_error("不支持对字符串类型使用复合赋值运算: " + comp_assign->var + 
+                                    " code:" + std::to_string(node.line) + 
+                                    " line:" + std::to_string(__LINE__));
         }
 
         auto ptr = comp_assign->lookup_llvm_symbol(comp_assign->var);
@@ -294,8 +316,64 @@ int CodeGen::visit_stmt(ASTNode& node) {
 
       builder.SetInsertPoint(end_bb);
     } else if (auto *ret = dynamic_cast<Return *>(&node)) {
-      auto value = visit_expr(*ret->value);
-      builder.CreateRet(value);
+      // 获取返回值
+      auto return_value = visit_expr(*ret->value);
+      
+      // 如果返回值是字符串类型，增加引用计数
+      VarType return_type = visit_expr_type(*ret->value);
+      if (return_type == VarType::STRING) {
+          auto retain_func = runtime_manager->getRuntimeFunction("nova_memory_retain");
+          if (retain_func) {
+              builder.CreateCall(retain_func, {return_value});
+          }
+      }
+      
+      // 释放当前作用域中的字符串变量
+      auto release_func = runtime_manager->getRuntimeFunction("nova_memory_release");
+      if (release_func && current_function) {
+          auto memory_block_ptr_type = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
+          
+          // 遍历当前作用域中的所有变量
+          for (llvm::BasicBlock &BB : *current_function) {
+              for (llvm::Instruction &I : BB) {
+                  // 检查是否是分配指令
+                  if (auto *allocaInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
+                      std::string var_name = allocaInst->getName().str();
+                      if (!var_name.empty()) {
+                          VarType var_type = ret->lookup_var_type(var_name);
+                          
+                          // 如果是字符串类型，需要减少引用计数
+                          if (var_type == VarType::STRING) {
+                              // 获取变量的LLVM符号
+                              auto var_ptr = ret->lookup_llvm_symbol(var_name);
+                              if (var_ptr) {
+                                  // 加载变量值
+                                  auto var_value = builder.CreateLoad(memory_block_ptr_type, var_ptr, var_name + "_load");
+                                  
+                                  // 创建判断：如果变量不为空，则减少引用计数
+                                  auto is_not_null = builder.CreateIsNotNull(var_value, var_name + "_is_not_null");
+                                  auto release_block = llvm::BasicBlock::Create(context, var_name + "_release", current_function);
+                                  auto continue_block = llvm::BasicBlock::Create(context, var_name + "_continue", current_function);
+                                  
+                                  builder.CreateCondBr(is_not_null, release_block, continue_block);
+                                  
+                                  // 在release块中减少引用计数
+                                  builder.SetInsertPoint(release_block);
+                                  builder.CreateCall(release_func, {var_value});
+                                  builder.CreateBr(continue_block);
+                                  
+                                  // 继续处理下一个变量
+                                  builder.SetInsertPoint(continue_block);
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+      
+      // 创建返回指令
+      builder.CreateRet(return_value);
     } else if (auto *prt = dynamic_cast<Print *>(&node)) {
       generatePrintStatement(prt);
     } else if (auto *call = dynamic_cast<Call *>(&node)) {

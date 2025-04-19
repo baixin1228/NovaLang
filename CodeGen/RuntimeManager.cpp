@@ -3,7 +3,7 @@
 #include <iostream>
 
 RuntimeManager::RuntimeManager(llvm::LLVMContext& context, llvm::Module* module, llvm::IRBuilder<>& builder)
-    : context(context), module(module), builder(builder), runtime_lib(nullptr), unicode_string_type(nullptr) {
+    : context(context), module(module), builder(builder), runtime_lib(nullptr), nova_memory_block_type(nullptr) {
 }
 
 RuntimeManager::~RuntimeManager() {
@@ -14,47 +14,67 @@ RuntimeManager::~RuntimeManager() {
 }
 
 void RuntimeManager::initRuntimeTypes() {
-    // 创建 unicode_string 结构体类型 - 使用柔性数组成员
-    unicode_string_type = llvm::StructType::create(context, "unicode_string");
-    std::vector<llvm::Type*> unicode_string_elements = {
-        builder.getInt32Ty(),                          // int32_t length
-        llvm::ArrayType::get(builder.getInt16Ty(), 0)  // UChar data[] - 柔性数组成员
+    // 创建 nova_memory_block 结构体类型
+    nova_memory_block_type = llvm::StructType::create(context, "nova_memory_block");
+    
+    // 设置结构体成员：ref_count和数据区域
+    std::vector<llvm::Type*> memory_block_elements = {
+        builder.getInt32Ty(),                          // int32_t ref_count
+        llvm::ArrayType::get(builder.getInt8Ty(), 0)   // char data[] - 柔性数组成员
     };
-    unicode_string_type->setBody(unicode_string_elements);
+    
+    nova_memory_block_type->setBody(memory_block_elements);
 }
 
 std::vector<std::string> RuntimeManager::getRuntimeFunctionNames() const {
     return {
-        "create_unicode_string_from_system",
-        "create_unicode_string_from_encoding",
-        "unicode_string_to_system",
-        "unicode_string_to_encoding",
-        "free_unicode_string",
-        "print_unicode_string",
-        "println_unicode_string",
-        "concat_unicode_strings"
+        "create_string_from_system",
+        "create_string_from_encoding",
+        "create_string_from_chars",
+        "string_to_system",
+        "string_to_encoding",
+        "print_string",
+        "println_string",
+        "concat_strings",
+        "get_string_length",
+        "nova_memory_retain",
+        "nova_memory_release"
     };
 }
 
 llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) {
-    if (name == "create_unicode_string_from_system" || name == "create_unicode_string_from_encoding") {
+    // Nova内存块指针类型
+    auto memory_block_ptr_type = llvm::PointerType::get(nova_memory_block_type, 0);
+    
+    if (name == "create_string_from_system" || name == "create_string_from_encoding") {
         std::vector<llvm::Type*> params = {
             builder.getInt8PtrTy()  // const char* str
         };
-        if (name == "create_unicode_string_from_encoding") {
+        if (name == "create_string_from_encoding") {
             params.push_back(builder.getInt8PtrTy());  // const char* encoding
         }
         return llvm::FunctionType::get(
-            llvm::PointerType::get(unicode_string_type, 0),  // return type: unicode_string*
+            memory_block_ptr_type,  // return type: nova_memory_block*
             params,
             false
         );
     }
-    else if (name == "unicode_string_to_system" || name == "unicode_string_to_encoding") {
+    else if (name == "create_string_from_chars") {
         std::vector<llvm::Type*> params = {
-            llvm::PointerType::get(unicode_string_type, 0)  // const unicode_string* str
+            llvm::PointerType::get(builder.getInt16Ty(), 0),  // const UChar* chars
+            builder.getInt32Ty()                              // int32_t length
         };
-        if (name == "unicode_string_to_encoding") {
+        return llvm::FunctionType::get(
+            memory_block_ptr_type,  // return type: nova_memory_block*
+            params,
+            false
+        );
+    }
+    else if (name == "string_to_system" || name == "string_to_encoding") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type  // const nova_memory_block* str
+        };
+        if (name == "string_to_encoding") {
             params.push_back(builder.getInt8PtrTy());  // const char* encoding
         }
         return llvm::FunctionType::get(
@@ -63,27 +83,41 @@ llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) 
             false
         );
     }
-    else if (name == "free_unicode_string") {
+    else if (name == "print_string" || name == "println_string") {
         return llvm::FunctionType::get(
             builder.getVoidTy(),  // return type: void
-            {llvm::PointerType::get(unicode_string_type, 0)},  // unicode_string* str
+            {memory_block_ptr_type},  // nova_memory_block* str
             false
         );
     }
-    else if (name == "print_unicode_string" || name == "println_unicode_string") {
+    else if (name == "nova_memory_release") {
         return llvm::FunctionType::get(
-            builder.getVoidTy(),  // return type: void
-            {llvm::PointerType::get(unicode_string_type, 0)},  // const unicode_string* str
+            builder.getInt32Ty(),  // return type: int32_t
+            {memory_block_ptr_type},  // nova_memory_block* str
             false
         );
     }
-    else if (name == "concat_unicode_strings") {
+    else if (name == "nova_memory_retain") {
+        return llvm::FunctionType::get(
+            builder.getInt32Ty(),  // return type: int32_t
+            {memory_block_ptr_type},  // nova_memory_block* str
+            false
+        );
+    }
+    else if (name == "get_string_length") {
+        return llvm::FunctionType::get(
+            builder.getInt32Ty(),  // return type: int32_t
+            {memory_block_ptr_type},  // const nova_memory_block* str
+            false
+        );
+    }
+    else if (name == "concat_strings") {
         std::vector<llvm::Type*> params = {
-            llvm::PointerType::get(unicode_string_type, 0),  // const unicode_string* str1
-            llvm::PointerType::get(unicode_string_type, 0)   // const unicode_string* str2
+            memory_block_ptr_type,  // const nova_memory_block* str1
+            memory_block_ptr_type   // const nova_memory_block* str2
         };
         return llvm::FunctionType::get(
-            llvm::PointerType::get(unicode_string_type, 0),  // return type: unicode_string*
+            memory_block_ptr_type,  // return type: nova_memory_block*
             params,
             false
         );

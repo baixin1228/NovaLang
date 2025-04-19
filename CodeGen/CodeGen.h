@@ -72,7 +72,7 @@ private:
   llvm::Function *current_function;
   Context &ctx;
   std::map<std::string, llvm::Value*> string_pool;  // 字符串池，用于复用相同的字符串
-
+  
   // Debug info
   std::unique_ptr<llvm::DIBuilder> dbg_builder;
   llvm::DIFile *dbg_file;
