@@ -7,10 +7,96 @@
 #include "BinOp.h"
 #include "UnaryOp.h"
 #include "Call.h"
+#include <llvm-14/llvm/IR/Value.h>
+
+llvm::Value* CodeGen::handleStringLiteral(StringLiteral* str_lit) {
+    // 获取原始字符串作为key
+    const std::string& str_key = str_lit->get_raw_str();
+    
+    // 检查字符串池中是否已存在
+    auto it = string_pool.find(str_key);
+    if (it != string_pool.end()) {
+        return it->second;  // 返回已存在的内存指针
+    }
+    
+    // 获取Unicode字符串
+    const icu::UnicodeString& unicode_str = str_lit->get_unicode();
+    
+    // 创建unicode_string结构体类型
+    llvm::StructType* unicode_string_type = runtime_manager->getUnicodeStringType();
+    
+    // 使用malloc为unicode_string结构体分配内存 (包括柔性数组部分)
+    llvm::Function* malloc_func = module->getFunction("malloc");
+    if (!malloc_func) {
+        // 声明malloc函数
+        llvm::FunctionType* malloc_type = llvm::FunctionType::get(
+            builder.getInt8PtrTy(),  // 返回类型为void*
+            {builder.getInt64Ty()},  // 参数类型为size_t
+            false
+        );
+        malloc_func = llvm::Function::Create(
+            malloc_type,
+            llvm::Function::ExternalLinkage,
+            "malloc",
+            module.get()
+        );
+    }
+    
+    // 计算需要分配的总内存大小：结构体大小 + 字符数据大小
+    // sizeof(unicode_string) + length * sizeof(UChar)
+    llvm::Value* string_length = llvm::ConstantInt::get(builder.getInt32Ty(), unicode_str.length());
+    llvm::Value* struct_size = llvm::ConstantInt::get(builder.getInt64Ty(), sizeof(int32_t)); // 结构体头部大小
+    llvm::Value* char_size = llvm::ConstantInt::get(builder.getInt64Ty(), sizeof(UChar));     // 每个字符大小
+    llvm::Value* data_size = builder.CreateMul(
+        builder.CreateZExt(string_length, builder.getInt64Ty()),
+        char_size,
+        "data_size"
+    );
+    llvm::Value* total_size = builder.CreateAdd(struct_size, data_size, "total_size");
+    
+    // 分配内存
+    llvm::Value* struct_malloc = builder.CreateCall(malloc_func, {total_size}, "unicode_string_malloc");
+    
+    // 将void*类型转换为unicode_string*类型
+    llvm::Value* unicode_string_ptr = builder.CreateBitCast(
+        struct_malloc,
+        llvm::PointerType::get(unicode_string_type, 0),
+        "unicode_string_ptr"
+    );
+    
+    // 设置length字段
+    llvm::Value* length_ptr = builder.CreateStructGEP(unicode_string_type, unicode_string_ptr, 0, "length_ptr");
+    builder.CreateStore(string_length, length_ptr);
+    
+    // 获取data数组的起始位置 (紧跟在length字段之后)
+    llvm::Value* data_array_ptr = builder.CreateStructGEP(unicode_string_type, unicode_string_ptr, 1, "data_array_ptr");
+    
+    // 将Unicode数据复制到data数组中
+    const UChar* source = unicode_str.getBuffer();
+    for (int i = 0; i < unicode_str.length(); i++) {
+        // 创建数组元素访问
+        std::vector<llvm::Value*> indices = {
+            llvm::ConstantInt::get(builder.getInt32Ty(), 0),  // 结构体索引
+            llvm::ConstantInt::get(builder.getInt32Ty(), i)   // 数组索引
+        };
+        llvm::Value* elem_ptr = builder.CreateInBoundsGEP(
+            data_array_ptr->getType()->getPointerElementType(),
+            data_array_ptr, 
+            indices, 
+            "char_ptr"
+        );
+        builder.CreateStore(llvm::ConstantInt::get(builder.getInt16Ty(), source[i]), elem_ptr);
+    }
+    
+    // 将unicode_string指针存入字符串池
+    string_pool[str_key] = unicode_string_ptr;
+    
+    return unicode_string_ptr;
+}
 
 llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
     if (auto* str_lit = dynamic_cast<StringLiteral*>(&node)) {
-        return builder.CreateGlobalStringPtr(str_lit->value);
+        return handleStringLiteral(str_lit);
     }
     if (auto* int_lit = dynamic_cast<IntLiteral*>(&node)) {
       if (expected_type != VarType::NONE && expected_type == VarType::FLOAT)
@@ -37,7 +123,8 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
         VarType type = var->lookup_var_type(var->name);
         switch (type) {
             case VarType::STRING: {
-                auto load = builder.CreateLoad(builder.getInt8PtrTy(), ptr, var->name + "_load");
+                auto unicode_string_ptr_type = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
+                auto load = builder.CreateLoad(unicode_string_ptr_type, ptr, var->name + "_load");
                 load->setAlignment(llvm::Align(get_type_align(type)));
                 return load;
             }

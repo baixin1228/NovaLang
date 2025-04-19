@@ -38,10 +38,29 @@ void CodeGen::generatePrintStatement(Print *prt) {
                 format_str += "%.18lf ";
                 printf_args.push_back(value);
                 break;
-            case VarType::STRING:
+            case VarType::STRING: {
+                // 对于字符串，调用运行时库的转换函数
+                auto to_system_func = runtime_manager->getRuntimeFunction("unicode_string_to_system");
+                if (!to_system_func) {
+                    auto unicode_str_ptr_type = llvm::PointerType::get(runtime_manager->getUnicodeStringType(), 0);
+                    to_system_func = llvm::Function::Create(
+                        llvm::FunctionType::get(
+                            builder.getInt8PtrTy(),  // 返回 char*
+                            {unicode_str_ptr_type},  // 参数是 const unicode_string*
+                            false
+                        ),
+                        llvm::Function::ExternalLinkage,
+                        "unicode_string_to_system",
+                        module.get()
+                    );
+                }
+                
+                // 确保value是unicode_string*类型，而不是i8*
+                // 不需要类型转换，因为handleStringLiteral已经返回正确类型
                 format_str += "%s ";
-                printf_args.push_back(value);
+                printf_args.push_back(builder.CreateCall(to_system_func, {value}));
                 break;
+            }
             case VarType::BOOL:
                 format_str += "%d ";
                 printf_args.push_back(value);

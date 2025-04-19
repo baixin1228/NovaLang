@@ -19,6 +19,12 @@ CodeGen::CodeGen(Context& ctx, bool debug)
       dbg_compile_unit(nullptr),
       generate_debug_info(debug) {
     
+    // 初始化运行时管理器
+    runtime_manager = std::make_unique<RuntimeManager>(context, module.get(), builder);
+    if (!runtime_manager->initialize()) {
+        throw std::runtime_error("Failed to initialize runtime manager");
+    }
+    
     // 只有在需要生成调试信息时才初始化调试信息
     if (generate_debug_info) {
         dbg_builder = std::make_unique<llvm::DIBuilder>(*module);

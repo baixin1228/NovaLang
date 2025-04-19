@@ -16,10 +16,15 @@ endif()
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG")
 
+# 查找 ICU 库
+find_package(ICU 70 COMPONENTS uc i18n REQUIRED)
+include_directories(${ICU_INCLUDE_DIRS})
+
 # 添加头文件搜索路径
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/AST)
 include_directories(${CMAKE_SOURCE_DIR}/CodeGen)
+include_directories(${CMAKE_SOURCE_DIR}/Runtime)
 
 # 查找 LLVM
 find_package(LLVM 14 REQUIRED CONFIG)
@@ -113,6 +118,24 @@ set(CODEGEN_SOURCES
     CodeGen/CodeGenStmt.cpp
     CodeGen/CodeGenFunction.cpp
     CodeGen/CodeGenVar.cpp
+    CodeGen/RuntimeManager.cpp
+)
+
+# 查找ICU库
+find_package(ICU REQUIRED COMPONENTS uc i18n)
+
+# 编译运行时库
+add_library(novalang_runtime SHARED
+    Runtime/runtime.c
+)
+set_target_properties(novalang_runtime PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+target_link_libraries(novalang_runtime PRIVATE
+    ICU::uc
+    ICU::i18n
 )
 
 # 添加可执行文件
@@ -132,5 +155,10 @@ target_compile_definitions(compiler PRIVATE
     $<$<CONFIG:Debug>:DEBUG>
 )
 
-# 链接 LLVM 库
-target_link_libraries(compiler PRIVATE ${llvm_libs})
+# 链接 LLVM 库和 ICU 库
+target_link_libraries(compiler PRIVATE 
+    ${llvm_libs} 
+    ICU::uc 
+    ICU::i18n
+    novalang_runtime
+)

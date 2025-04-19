@@ -2,21 +2,37 @@
 #include "ASTNode.h"
 #include "Context.h"
 #include <string>
-#include <iostream>
+#include <unicode/unistr.h>
+#include <unicode/ucnv.h>
 
 class StringLiteral : public ASTNode {
+private:
+    icu::UnicodeString unicode_value;
+    std::string raw_str;  // 存储原始字符串，用于字符串池的key
+
+    // Convert from any encoding to Unicode
+    static icu::UnicodeString convertToUnicode(const std::string& str, const char* encoding);
+
+    // Convert from Unicode to any encoding
+    static std::string convertFromUnicode(const icu::UnicodeString& str, const char* encoding);
+
 public:
-    std::string value;
+    StringLiteral(Context& ctx, const std::string& str, int ln, const char* sourceEncoding = "UTF-8");
 
-    StringLiteral(Context& ctx, const std::string& v, int ln) 
-        : ASTNode(ctx, ln), value(v) {}
+    const std::string& get_raw_str() const { return raw_str; }
 
-    void print(int level = 0) override {
-        for (int i = 0; i < level; i++) {
-            std::cout << "  ";
-        }
-        std::cout << "StringLiteral: \"" << value << "\"" << std::endl;
-    }
+    void print(int level = 0) override;
+
+    // Convert to various encodings
+    std::string to_utf8() const;
+    std::string to_utf16() const;
+    std::string to_utf32() const;
+    std::string to_gbk() const;
+    std::string to_big5() const;
+    std::string to_encoding(const char* encoding) const;
+
+    // Get raw Unicode string
+    const icu::UnicodeString& get_unicode() const { return unicode_value; }
 
     int visit_stmt(VarType &result) override;
     int visit_expr(VarType &result) override;

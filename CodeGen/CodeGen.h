@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <llvm/IR/GlobalVariable.h>
 
 #ifdef __linux__
 #define PLATFORM_LINUX 1
@@ -36,6 +37,9 @@
 #include "Function.h"
 #include "Assign.h"
 #include "Print.h"
+#include "RuntimeManager.h"
+#include "StringLiteral.h"
+
 // 获取类型对齐值
 inline uint32_t get_type_align(VarType type) {
   switch (type) {
@@ -59,6 +63,7 @@ inline uint32_t get_max_align(VarType type1, VarType type2) {
 
 // 代码生成
 class CodeGen {
+private:
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   llvm::IRBuilder<> builder;
@@ -66,6 +71,7 @@ class CodeGen {
   llvm::Function *printf_func; // Single printf declaration
   llvm::Function *current_function;
   Context &ctx;
+  std::map<std::string, llvm::Value*> string_pool;  // 字符串池，用于复用相同的字符串
 
   // Debug info
   std::unique_ptr<llvm::DIBuilder> dbg_builder;
@@ -74,7 +80,13 @@ class CodeGen {
   std::string source_filename; // 源文件名
   bool generate_debug_info;    // 新增：控制是否生成调试信息
 
+  // Runtime manager
+  std::unique_ptr<RuntimeManager> runtime_manager;
+
   void generatePrintStatement(Print *prt);
+  
+  // 处理字符串字面量，返回指向unicode字符串的指针
+  llvm::Value* handleStringLiteral(StringLiteral* str_lit);
 
 public:
   explicit CodeGen(Context &ctx, bool debug = false);

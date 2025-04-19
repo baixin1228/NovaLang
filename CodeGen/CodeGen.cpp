@@ -132,22 +132,39 @@ void CodeGen::execute() {
     }
     main_jd.addGenerator(std::move(*dlsg));
 
-    // Explicitly provide printf symbol
+    // 创建符号映射
     llvm::orc::SymbolMap symbols;
+
+    // 添加 printf 符号
     void* printf_ptr = dlsym(RTLD_DEFAULT, "printf");
     if (printf_ptr) {
         symbols[(*jit)->mangleAndIntern("printf")] = llvm::JITEvaluatedSymbol(
             llvm::pointerToJITTargetAddress(printf_ptr), llvm::JITSymbolFlags::Exported);
+    }
+
+    // 添加运行时库中的所有函数
+    for (const auto& name : runtime_manager->getRuntimeFunctionNames()) {
+        void* func_ptr = dlsym(runtime_manager->getRuntimeLibHandle(), name.c_str());
+        if (func_ptr) {
+            symbols[(*jit)->mangleAndIntern(name)] = llvm::JITEvaluatedSymbol(
+                llvm::pointerToJITTargetAddress(func_ptr), llvm::JITSymbolFlags::Exported);
+        } else {
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                std::string("无法找到运行时函数 ") + name, 0, __FILE__, __LINE__);
+            return;
+        }
+    }
+
+    // 定义所有符号
+    if (!symbols.empty()) {
         if (auto err = main_jd.define(llvm::orc::absoluteSymbols(symbols))) {
             std::string err_msg;
             llvm::raw_string_ostream err_stream(err_msg);
             err_stream << err;
-            ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法定义 printf 符号: " + err_msg, 0, __FILE__, __LINE__);
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE, 
+                "无法定义运行时符号: " + err_msg, 0, __FILE__, __LINE__);
             return;
         }
-    } else {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法找到 printf 符号，将依赖默认符号解析", 0, __FILE__, __LINE__);
-        // Proceed without explicit mapping, relying on JIT's default resolution
     }
 
     if (auto err = (*jit)->addIRModule(
@@ -167,5 +184,5 @@ void CodeGen::execute() {
 
     using MainFn = int(*)();
     auto main_fn = reinterpret_cast<MainFn>(main->getAddress());
-    main_fn();
+    int result = main_fn();
 }
