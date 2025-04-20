@@ -4,9 +4,9 @@
 class Call : public ASTNode {
 public:
     std::string name;
-    std::vector<std::unique_ptr<ASTNode>> args;
+    std::vector<std::shared_ptr<ASTNode>> args;
 
-    Call(Context &ctx, std::string n, std::vector<std::unique_ptr<ASTNode>> a,
+    Call(Context &ctx, std::string n, std::vector<std::shared_ptr<ASTNode>> a,
          int ln)
         : ASTNode(ctx, ln), name(n), args(std::move(a)) {}
 

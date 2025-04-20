@@ -39,6 +39,8 @@
 #include "Print.h"
 #include "RuntimeManager.h"
 #include "StringLiteral.h"
+#include "AST/StructLiteral.h"
+#include "AST/StructFieldAccess.h"
 
 // 获取类型对齐值
 inline uint32_t get_type_align(VarType type) {
@@ -49,6 +51,9 @@ inline uint32_t get_type_align(VarType type) {
   case VarType::BOOL:
     return 1;
   case VarType::STRING:
+  case VarType::STRUCT:
+  case VarType::DICT:
+  case VarType::LIST:
     return 8; // Pointer alignment
   default:
     std::cerr << "Unknown type: " << var_type_to_string(type) << std::endl;
@@ -74,19 +79,28 @@ private:
   std::map<std::string, llvm::Value*> string_pool;  // 字符串池，用于复用相同的字符串
   
   // Debug info
-  std::unique_ptr<llvm::DIBuilder> dbg_builder;
+  std::shared_ptr<llvm::DIBuilder> dbg_builder;
   llvm::DIFile *dbg_file;
   llvm::DICompileUnit *dbg_compile_unit;
   std::string source_filename; // 源文件名
   bool generate_debug_info;    // 新增：控制是否生成调试信息
 
   // Runtime manager
-  std::unique_ptr<RuntimeManager> runtime_manager;
+  std::shared_ptr<RuntimeManager> runtime_manager;
 
   void generatePrintStatement(Print *prt);
   
   // 处理字符串字面量，返回指向unicode字符串的指针
   llvm::Value* handleStringLiteral(StringLiteral* str_lit);
+  
+  // 处理结构体字面量，返回指向结构体的指针
+  llvm::Value* handleStructLiteral(StructLiteral* struct_lit);
+  
+  // 处理结构体字段访问，返回字段值
+  llvm::Value* handleStructFieldAccess(StructFieldAccess* field_access);
+  
+  // 创建常量数组，用于结构体字面量处理
+  llvm::Value* createConstantArray(const std::vector<llvm::Value*>& values, const std::string& name);
 
 public:
   explicit CodeGen(Context &ctx, bool debug = false);

@@ -3,11 +3,11 @@
 
 class While : public ASTNode {
 public:
-    std::unique_ptr<ASTNode> condition;
-    std::vector<std::unique_ptr<ASTNode>> body;
+    std::shared_ptr<ASTNode> condition;
+    std::vector<std::shared_ptr<ASTNode>> body;
 
-    While(Context &ctx, std::unique_ptr<ASTNode> cond,
-          std::vector<std::unique_ptr<ASTNode>> b, int ln)
+    While(Context &ctx, std::shared_ptr<ASTNode> cond,
+          std::vector<std::shared_ptr<ASTNode>> b, int ln)
         : ASTNode(ctx, ln),
           condition(std::move(cond)), 
           body(std::move(b)) {

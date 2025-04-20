@@ -4,11 +4,11 @@
 class For : public ASTNode {
 public:
     std::string iterator;
-    std::unique_ptr<ASTNode> end;
-    std::vector<std::unique_ptr<ASTNode>> body;
+    std::shared_ptr<ASTNode> end;
+    std::vector<std::shared_ptr<ASTNode>> body;
 
-    For(Context &ctx, std::string it, std::unique_ptr<ASTNode> e,
-        std::vector<std::unique_ptr<ASTNode>> b, int ln)
+    For(Context &ctx, std::string it, std::shared_ptr<ASTNode> e,
+        std::vector<std::shared_ptr<ASTNode>> b, int ln)
         : ASTNode(ctx, ln),
           iterator(std::move(it)), 
           end(std::move(e)),

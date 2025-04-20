@@ -4,9 +4,9 @@
 class UnaryOp : public ASTNode {
 public:
     std::string op;
-    std::unique_ptr<ASTNode> expr;
+    std::shared_ptr<ASTNode> expr;
 
-    UnaryOp(Context &ctx, std::string o, std::unique_ptr<ASTNode> e, int ln)
+    UnaryOp(Context &ctx, std::string o, std::shared_ptr<ASTNode> e, int ln)
         : ASTNode(ctx, ln), op(o), expr(std::move(e)) {
         expr->set_parent(this);
     }

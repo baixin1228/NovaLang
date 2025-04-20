@@ -60,9 +60,9 @@ bool Context::has_func(const std::string& name) const {
     return func_types.find(name) != func_types.end();
 }
 
-const std::unique_ptr<ASTNode>&
+const std::shared_ptr<ASTNode>&
 Context::get_func(const std::string &name) const {
-  static const std::unique_ptr<ASTNode> null_ptr;
+  static const std::shared_ptr<ASTNode> null_ptr;
   auto it = funcline.find(name);
   if (it != funcline.end()) {
     return ast[it->second];
@@ -82,11 +82,11 @@ std::optional<uint64_t> Context::get_funcline(const std::string& name) const {
     return std::nullopt;
 }
 
-void Context::add_ast_node(std::unique_ptr<ASTNode> node) {
+void Context::add_ast_node(std::shared_ptr<ASTNode> node) {
     ast.push_back(std::move(node));
 }
 
-std::vector<std::unique_ptr<ASTNode>>& Context::get_ast() {
+std::vector<std::shared_ptr<ASTNode>>& Context::get_ast() {
     return ast;
 }
 
@@ -144,3 +144,14 @@ llvm::Value* Context::lookup_llvm_symbol(const std::string& name) const {
 //     }
 //     return -1;
 // } 
+
+void Context::add_global_struct(const std::string& name, std::shared_ptr<ASTNode> node) {
+    if (global_structs.find(name) == global_structs.end()) {
+        global_structs[name] = node;
+    }
+}
+
+std::shared_ptr<ASTNode> Context::lookup_global_struct(const std::string& name) const {
+    auto it = global_structs.find(name);
+    return it != global_structs.end() ? it->second : nullptr;
+}

@@ -5,15 +5,15 @@
 
 class Print : public ASTNode {
 public:
-    std::vector<std::unique_ptr<ASTNode>> values;
+    std::vector<std::shared_ptr<ASTNode>> values;
 
-    Print(Context& ctx, std::unique_ptr<ASTNode> val, int ln) 
+    Print(Context& ctx, std::shared_ptr<ASTNode> val, int ln) 
         : ASTNode(ctx, ln) {
             val->set_parent(this);
             values.push_back(std::move(val));
     }
 
-    Print(Context& ctx, std::vector<std::unique_ptr<ASTNode>> vals, int ln)
+    Print(Context& ctx, std::vector<std::shared_ptr<ASTNode>> vals, int ln)
         : ASTNode(ctx, ln), values(std::move(vals)) {
             for (auto& val : values) {
                 val->set_parent(this);

@@ -108,6 +108,10 @@ set(AST_SOURCES
     AST/UnaryOp.cpp
     AST/Variable.cpp
     AST/While.cpp
+    AST/StructLiteral.cpp
+    AST/DictLiteral.cpp
+    AST/ListLiteral.cpp
+    AST/StructFieldAccess.cpp
 )
 
 # 设置 CodeGen 源文件

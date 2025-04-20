@@ -34,6 +34,8 @@ class ASTParser {
       return "TOK_INT";
     case TOK_FLOAT:
       return "TOK_FLOAT";
+    case TOK_STRING:
+      return "TOK_STRING";
     case TOK_ID:
       return "TOK_ID";
     case TOK_PLUS:
@@ -44,14 +46,36 @@ class ASTParser {
       return "TOK_STAR";
     case TOK_SLASH:
       return "TOK_SLASH";
+    case TOK_DSLASH:
+      return "TOK_DSLASH";
     case TOK_LPAREN:
       return "TOK_LPAREN";
     case TOK_RPAREN:
       return "TOK_RPAREN";
+    case TOK_LBRACE:
+      return "TOK_LBRACE";
+    case TOK_RBRACE:
+      return "TOK_RBRACE";
+    case TOK_LBRACKET:
+      return "TOK_LBRACKET";
+    case TOK_RBRACKET:
+      return "TOK_RBRACKET";
+    case TOK_COLON:
+      return "TOK_COLON";
+    case TOK_COMMA:
+      return "TOK_COMMA";
     case TOK_ASSIGN:
       return "TOK_ASSIGN";
     case TOK_PLUSPLUS:
       return "TOK_PLUSPLUS";
+    case TOK_PLUSEQ:
+      return "TOK_PLUSEQ";
+    case TOK_MINUSEQ:
+      return "TOK_MINUSEQ";
+    case TOK_STAREQ:
+      return "TOK_STAREQ";
+    case TOK_SLASHEQ:
+      return "TOK_SLASHEQ";
     case TOK_EQEQ:
       return "TOK_EQEQ";
     case TOK_LT:
@@ -76,16 +100,6 @@ class ASTParser {
       return "TOK_DEF";
     case TOK_RETURN:
       return "TOK_RETURN";
-    case TOK_COMMA:
-      return "TOK_COMMA";
-    case TOK_COLON:
-      return "TOK_COLON";
-    case TOK_INDENT:
-      return "TOK_INDENT";
-    case TOK_DEDENT:
-      return "TOK_DEDENT";
-    case TOK_EOF:
-      return "TOK_EOF";
     case TOK_PRINT:
       return "TOK_PRINT";
     case TOK_FOR:
@@ -100,6 +114,14 @@ class ASTParser {
       return "TOK_ELSE";
     case TOK_ELIF:
       return "TOK_ELIF";
+    case TOK_INDENT:
+      return "TOK_INDENT";
+    case TOK_DEDENT:
+      return "TOK_DEDENT";
+    case TOK_NEWLINE:
+      return "TOK_NEWLINE";
+    case TOK_EOF:
+      return "TOK_EOF";
     default:
       return "UNKNOWN";
     }
@@ -109,20 +131,24 @@ public:
   ASTParser(Context &ctx, std::vector<Token> t)
       : ctx(ctx), tokens(std::move(t)) {}
   int parse();
-  std::unique_ptr<ASTNode> parse_stmt();
-  std::unique_ptr<ASTNode> parse_function();
-  std::unique_ptr<ASTNode> parse_while();
-  std::unique_ptr<ASTNode> parse_for();
-  std::unique_ptr<ASTNode> parse_if();
-  std::unique_ptr<ASTNode> parse_global();
-  std::unique_ptr<ASTNode> parse_expr();
-  std::unique_ptr<ASTNode> parse_logic_or();
-  std::unique_ptr<ASTNode> parse_logic_and();
-  std::unique_ptr<ASTNode> parse_equality();
-  std::unique_ptr<ASTNode> parse_comparison();
-  std::unique_ptr<ASTNode> parse_term();
-  std::unique_ptr<ASTNode> parse_factor();
-  std::unique_ptr<ASTNode> parse_unary();
-  std::unique_ptr<ASTNode> parse_primary();
+  std::shared_ptr<ASTNode> parse_stmt();
+  std::shared_ptr<ASTNode> parse_function();
+  std::shared_ptr<ASTNode> parse_while();
+  std::shared_ptr<ASTNode> parse_for();
+  std::shared_ptr<ASTNode> parse_if();
+  std::shared_ptr<ASTNode> parse_global();
+  std::shared_ptr<ASTNode> parse_expr();
+  std::shared_ptr<ASTNode> parse_logic_or();
+  std::shared_ptr<ASTNode> parse_logic_and();
+  std::shared_ptr<ASTNode> parse_equality();
+  std::shared_ptr<ASTNode> parse_comparison();
+  std::shared_ptr<ASTNode> parse_term();
+  std::shared_ptr<ASTNode> parse_factor();
+  std::shared_ptr<ASTNode> parse_unary();
+  std::shared_ptr<ASTNode> parse_primary();
+  std::shared_ptr<ASTNode> parse_struct_literal();
+  std::shared_ptr<ASTNode> parse_dict_literal();
+  std::shared_ptr<ASTNode> parse_list_literal();
+  Token peek_next() const;
   void print_ast();
 };

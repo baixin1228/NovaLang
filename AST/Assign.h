@@ -4,11 +4,11 @@
 class Assign : public ASTNode {
 public:
     std::string var;
-    std::unique_ptr<ASTNode> value;
+    std::shared_ptr<ASTNode> value;
     bool need_create;
     bool is_global;
 
-    Assign(Context &ctx, std::string v, std::unique_ptr<ASTNode> val, int ln)
+    Assign(Context &ctx, std::string v, std::shared_ptr<ASTNode> val, int ln)
         : ASTNode(ctx, ln), var(v), value(std::move(val)), need_create(false) {
             value->set_parent(this);
         }

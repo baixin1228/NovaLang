@@ -17,9 +17,10 @@ private:
   ErrorHandler errors;
   std::map<std::string, uint64_t> funcline;
   std::map<std::string, llvm::Value*> global_symbols;
-  std::vector<std::unique_ptr<ASTNode>> ast;
+  std::vector<std::shared_ptr<ASTNode>> ast;
   std::string source_filename;
-
+  //全局结构体定义
+  std::map<std::string, std::shared_ptr<ASTNode>> global_structs;
 public:
   Context() = default;
   ~Context() = default;
@@ -42,9 +43,9 @@ public:
   std::optional<uint64_t> get_funcline(const std::string &name) const;
 
   // AST操作
-  void add_ast_node(std::unique_ptr<ASTNode> node);
-  std::vector<std::unique_ptr<ASTNode>> &get_ast();
-  const std::unique_ptr<ASTNode> &get_func(const std::string &name) const;
+  void add_ast_node(std::shared_ptr<ASTNode> node);
+  std::vector<std::shared_ptr<ASTNode>> &get_ast();
+  const std::shared_ptr<ASTNode> &get_func(const std::string &name) const;
 
   // 错误处理
   void add_error(ErrorHandler::ErrorLevel level, const std::string &msg,
@@ -59,7 +60,10 @@ public:
 
   // 生成唯一的局部变量名
   std::string generate_local_var_name(const std::string& original_name, const ASTNode* node) const;
-
+  
+  //全局结构体
+  void add_global_struct(const std::string& name, std::shared_ptr<ASTNode> node);
+  std::shared_ptr<ASTNode> lookup_global_struct(const std::string& name) const;
   // 全局符号表操作
   void add_llvm_symbol(const std::string& name, llvm::Value* value);
   llvm::Value* lookup_llvm_symbol(const std::string& name) const;

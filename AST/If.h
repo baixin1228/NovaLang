@@ -3,17 +3,17 @@
 
 class If : public ASTNode {
 public:
-    std::unique_ptr<ASTNode> condition;
-    std::vector<std::unique_ptr<ASTNode>> body;
-    std::vector<std::pair<std::unique_ptr<ASTNode>, std::vector<std::unique_ptr<ASTNode>>>> elifs;
-    std::vector<std::unique_ptr<ASTNode>> else_body;
+    std::shared_ptr<ASTNode> condition;
+    std::vector<std::shared_ptr<ASTNode>> body;
+    std::vector<std::pair<std::shared_ptr<ASTNode>, std::vector<std::shared_ptr<ASTNode>>>> elifs;
+    std::vector<std::shared_ptr<ASTNode>> else_body;
 
-    If(Context &ctx, std::unique_ptr<ASTNode> c,
-       std::vector<std::unique_ptr<ASTNode>> b,
-       std::vector<std::pair<std::unique_ptr<ASTNode>,
-                             std::vector<std::unique_ptr<ASTNode>>>>
+    If(Context &ctx, std::shared_ptr<ASTNode> c,
+       std::vector<std::shared_ptr<ASTNode>> b,
+       std::vector<std::pair<std::shared_ptr<ASTNode>,
+                             std::vector<std::shared_ptr<ASTNode>>>>
            e,
-       std::vector<std::unique_ptr<ASTNode>> eb, int ln)
+       std::vector<std::shared_ptr<ASTNode>> eb, int ln)
         : ASTNode(ctx, ln),
           condition(std::move(c)), 
           body(std::move(b)),

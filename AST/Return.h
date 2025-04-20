@@ -3,9 +3,9 @@
 
 class Return : public ASTNode {
 public:
-    std::unique_ptr<ASTNode> value;
+    std::shared_ptr<ASTNode> value;
 
-    Return(Context &ctx, std::unique_ptr<ASTNode> v, int ln)
+    Return(Context &ctx, std::shared_ptr<ASTNode> v, int ln)
         : ASTNode(ctx, ln), value(std::move(v)) {
       value->set_parent(this);
     }

@@ -6,10 +6,10 @@ public:
     std::string name;
     uint32_t reference_count;
     std::vector<std::string> params;
-    std::vector<std::unique_ptr<ASTNode>> body;
+    std::vector<std::shared_ptr<ASTNode>> body;
 
     Function(Context &ctx, std::string n, std::vector<std::string> p,
-             std::vector<std::unique_ptr<ASTNode>> b, int ln)
+             std::vector<std::shared_ptr<ASTNode>> b, int ln)
         : ASTNode(ctx, ln, true),  // 设置 is_scope 为 true
           name(n), 
           reference_count(0), 

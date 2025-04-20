@@ -4,10 +4,10 @@
 class BinOp : public ASTNode {
 public:
     std::string op;
-    std::unique_ptr<ASTNode> left, right;
+    std::shared_ptr<ASTNode> left, right;
 
-    BinOp(Context &ctx, std::string o, std::unique_ptr<ASTNode> l,
-          std::unique_ptr<ASTNode> r, int ln)
+    BinOp(Context &ctx, std::string o, std::shared_ptr<ASTNode> l,
+          std::shared_ptr<ASTNode> r, int ln)
         : ASTNode(ctx, ln), op(o), left(std::move(l)), right(std::move(r)) {
         left->set_parent(this);
         right->set_parent(this);

@@ -38,7 +38,9 @@ std::vector<std::string> RuntimeManager::getRuntimeFunctionNames() const {
         "concat_strings",
         "get_string_length",
         "nova_memory_retain",
-        "nova_memory_release"
+        "nova_memory_release",
+        "nova_memory_alloc",
+        "nova_memory_get_data"
     };
 }
 
@@ -46,7 +48,27 @@ llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) 
     // Nova内存块指针类型
     auto memory_block_ptr_type = llvm::PointerType::get(nova_memory_block_type, 0);
     
-    if (name == "create_string_from_system" || name == "create_string_from_encoding") {
+    if (name == "nova_memory_alloc") {
+        std::vector<llvm::Type*> params = {
+            builder.getInt64Ty()  // size_t size
+        };
+        return llvm::FunctionType::get(
+            memory_block_ptr_type,  // return type: nova_memory_block*
+            params,
+            false
+        );
+    }
+    else if (name == "nova_memory_get_data") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type  // nova_memory_block* block
+        };
+        return llvm::FunctionType::get(
+            builder.getInt8PtrTy(),  // return type: void*
+            params,
+            false
+        );
+    }
+    else if (name == "create_string_from_system" || name == "create_string_from_encoding") {
         std::vector<llvm::Type*> params = {
             builder.getInt8PtrTy()  // const char* str
         };

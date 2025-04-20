@@ -8,9 +8,9 @@ class CompoundAssign : public ASTNode {
 public:
     std::string var;
     std::string op;
-    std::unique_ptr<ASTNode> value;
+    std::shared_ptr<ASTNode> value;
 
-    CompoundAssign(Context& ctx, std::string v, std::string o, std::unique_ptr<ASTNode> val, int ln)
+    CompoundAssign(Context& ctx, std::string v, std::string o, std::shared_ptr<ASTNode> val, int ln)
         : ASTNode(ctx, ln), var(v), op(o), value(std::move(val)) {
             value->set_parent(this);
         }

@@ -7,7 +7,112 @@
 #include "BinOp.h"
 #include "UnaryOp.h"
 #include "Call.h"
+#include "AST/StructLiteral.h"
+#include "AST/DictLiteral.h"
+#include "AST/ListLiteral.h"
+#include "AST/StructFieldAccess.h"
+#include <llvm-14/llvm/ADT/None.h>
 #include <llvm-14/llvm/IR/Value.h>
+
+// 处理结构体字段访问，返回字段值
+llvm::Value* CodeGen::handleStructFieldAccess(StructFieldAccess* field_access) {
+    // 获取结构体引用
+    auto struct_val = visit_expr(*field_access->struct_expr);
+    if (!struct_val) {
+        throw std::runtime_error("无法访问无效结构体的字段 code:" + 
+                                std::to_string(field_access->line) + " line:" + 
+                                std::to_string(__LINE__));
+        return nullptr;
+    }
+    
+    // 获取字段名和字段类型
+    const std::string& field_name = field_access->field_name;
+    VarType field_type = visit_expr_type(*field_access);
+    
+    // 获取结构体数据区域指针
+    auto data_ptr = builder.CreateCall(runtime_manager->getRuntimeFunction("nova_memory_get_data"), {struct_val});
+    auto byte_ptr = builder.CreateBitCast(data_ptr, llvm::PointerType::get(builder.getInt8Ty(), 0));
+    
+    // 计算字段偏移量
+    size_t field_offset = 0;
+    bool found_field = false;
+    
+    // 从结构体定义中查找字段位置
+    // 遍历结构体定义中的字段，计算偏移量
+    auto* struct_expr = field_access->struct_expr.get();
+    
+    // 从原始的结构体字面量中获取字段信息
+    auto *var_lit = dynamic_cast<Variable *>(struct_expr);
+    auto ast_lit = ctx.lookup_global_struct(var_lit->name);
+    if (ast_lit) {
+      auto *struct_lit = dynamic_cast<StructLiteral *>(ast_lit.get());
+      const auto &fields = struct_lit->fields;
+      for (const auto &field : fields) {
+        if (field.first == field_name) {
+          found_field = true;
+          break;
+        }
+        field_offset += get_type_align(visit_expr_type(*field.second));
+      }
+    }
+
+    if (!found_field) {
+        throw std::runtime_error("结构体不存在字段: " + field_name + " code:" + 
+                               std::to_string(field_access->line) + " line:" + 
+                               std::to_string(__LINE__));
+        return nullptr;
+    }
+    
+    // 根据字段类型和偏移量获取字段值
+    llvm::Value* field_ptr_ptr = builder.CreateGEP(builder.getInt8Ty(), byte_ptr, 
+        llvm::ConstantInt::get(builder.getInt64Ty(), field_offset));
+    
+    llvm::Value* field_val = nullptr;
+    
+    // 根据字段类型加载值
+    switch (field_type) {
+        case VarType::INT: {
+            auto field_ptr = builder.CreateBitCast(field_ptr_ptr, 
+                llvm::PointerType::get(builder.getInt64Ty(), 0));
+            field_val = builder.CreateLoad(builder.getInt64Ty(), field_ptr, 
+                "field_" + field_name);
+            break;
+        }
+        case VarType::FLOAT: {
+            auto field_ptr = builder.CreateBitCast(field_ptr_ptr, 
+                llvm::PointerType::get(builder.getDoubleTy(), 0));
+            field_val = builder.CreateLoad(builder.getDoubleTy(), field_ptr, 
+                "field_" + field_name);
+            break;
+        }
+        case VarType::BOOL: {
+            auto field_ptr = builder.CreateBitCast(field_ptr_ptr, 
+                llvm::PointerType::get(builder.getInt1Ty(), 0));
+            field_val = builder.CreateLoad(builder.getInt1Ty(), field_ptr, 
+                "field_" + field_name);
+            break;
+        }
+        case VarType::STRING:
+        case VarType::STRUCT:
+        case VarType::DICT:
+        case VarType::LIST: {
+            auto field_ptr = builder.CreateBitCast(field_ptr_ptr, 
+                llvm::PointerType::get(llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0), 0));
+            field_val = builder.CreateLoad(
+                llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0), 
+                field_ptr, 
+                "field_" + field_name);
+            break;
+        }
+        default:
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                        "不支持的结构体字段类型: " + var_type_to_string(field_type),
+                        field_access->line, __FILE__, __LINE__);
+            return nullptr;
+    }
+    
+    return field_val;
+}
 
 llvm::Value* CodeGen::handleStringLiteral(StringLiteral* str_lit) {
     // 获取原始字符串作为key
@@ -120,8 +225,23 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
                 load->setAlignment(llvm::Align(get_type_align(type)));
                 return load;
             }
+            case VarType::STRUCT: {
+                // 对于结构体变量，加载结构体指针
+                auto memory_block_ptr_type = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
+                auto load = builder.CreateLoad(memory_block_ptr_type, ptr, var->name + "_load");
+                load->setAlignment(llvm::Align(get_type_align(type)));
+                return load;
+            }
+            case VarType::DICT:
+            case VarType::LIST: {
+                // 其他复合类型，加载内存块指针
+                auto memory_block_ptr_type = llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0);
+                auto load = builder.CreateLoad(memory_block_ptr_type, ptr, var->name + "_load");
+                load->setAlignment(llvm::Align(get_type_align(type)));
+                return load;
+            }
             default:
-                throw std::runtime_error("未知变量类型: " + var->name + " code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
+                throw std::runtime_error("加载数据失败，未知变量类型: " + var->name + " code:" + std::to_string(node.line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
                 return nullptr;
         }
     }
@@ -275,6 +395,28 @@ llvm::Value* CodeGen::visit_expr(ASTNode& node, VarType expected_type) {
         }
         return builder.CreateCall(func, args, "call");
     }
+    if (auto* struct_lit = dynamic_cast<StructLiteral*>(&node)) {
+        return handleStructLiteral(struct_lit);
+    }
+    if (auto* dict_lit = dynamic_cast<DictLiteral*>(&node)) {
+        // 字典实现将在后续完成，目前简单返回null指针
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "字典字面量暂不支持代码生成",
+                    node.line, __FILE__, __LINE__);
+        return llvm::ConstantPointerNull::get(
+            llvm::PointerType::get(builder.getInt8Ty(), 0));
+    }
+    if (auto* list_lit = dynamic_cast<ListLiteral*>(&node)) {
+        // 列表实现将在后续完成，目前简单返回null指针
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "列表字面量暂不支持代码生成",
+                    node.line, __FILE__, __LINE__);
+        return llvm::ConstantPointerNull::get(
+            llvm::PointerType::get(builder.getInt8Ty(), 0));
+    }
+    if (auto* field_access = dynamic_cast<StructFieldAccess*>(&node)) {
+        return handleStructFieldAccess(field_access);
+    }
     throw std::runtime_error("未知表达式 code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
     return nullptr;
 }
@@ -325,6 +467,136 @@ VarType CodeGen::visit_expr_type(ASTNode& node) {
     if (auto* call = dynamic_cast<Call*>(&node)) {
       return ctx.get_func_type(call->name).second;
     }
+    if (auto* struct_lit = dynamic_cast<StructLiteral*>(&node)) {
+        return VarType::STRUCT;
+    }
+    if (auto* dict_lit = dynamic_cast<DictLiteral*>(&node)) {
+        return VarType::DICT;
+    }
+    if (auto* list_lit = dynamic_cast<ListLiteral*>(&node)) {
+        return VarType::LIST;
+    }
+    if (auto* field_access = dynamic_cast<StructFieldAccess*>(&node)) {
+        auto* var_lit = dynamic_cast<Variable*>(field_access->struct_expr.get());
+        auto struct_var = ctx.lookup_global_struct(var_lit->name);
+        if (!struct_var) {
+            throw std::runtime_error("未定义的结构体: " + var_lit->name + " code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
+            return VarType::NONE;
+        }
+        auto* struct_lit = dynamic_cast<StructLiteral*>(struct_var.get());
+        auto filed = struct_lit->fields.find(field_access->field_name);
+        if (filed == struct_lit->fields.end()) {
+            throw std::runtime_error("未定义的结构体字段: " + field_access->field_name + " code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
+            return VarType::NONE;
+        }
+        auto field_type = visit_expr_type(*filed->second);
+        // 结构体字段的类型就是结构体类型
+        return field_type;
+    }
     throw std::runtime_error("未知表达式类型 code:" + std::to_string(node.line) + " line:" + std::to_string(__LINE__));
     return VarType::NONE;
-} 
+}
+
+// 处理结构体字面量，使用nova_memory_alloc分配内存并初始化结构体
+llvm::Value* CodeGen::handleStructLiteral(StructLiteral* struct_lit) {
+    // 获取结构体字段
+    const auto& fields = struct_lit->fields;
+    
+    // 计算所需内存大小 - 仅需存储字段值
+    size_t total_size = 0;
+    
+    // 创建字段映射的数据结构，用于后续写入内存
+    std::vector<std::pair<std::string, std::pair<VarType, llvm::Value*>>> field_data;
+    
+    // 遍历字段计算总大小
+    for (const auto& field : fields) {
+        VarType field_type = visit_expr_type(*field.second);
+        // 计算字段值所需空间
+        total_size += get_type_align(field_type);
+        
+        // 准备字段值
+        auto field_value = visit_expr(*field.second);
+        field_data.push_back({field.first, {field_type, field_value}});
+    }
+    
+    // 使用nova_memory_alloc创建一个结构体对象，分配所需内存
+    auto nova_memory_alloc_func = runtime_manager->getRuntimeFunction("nova_memory_alloc");
+    // 确保分配至少有1字节空间
+    if (total_size == 0) total_size = 1;
+    llvm::Value* size_val = llvm::ConstantInt::get(builder.getInt64Ty(), total_size);
+    llvm::Value* struct_ptr = builder.CreateCall(
+        nova_memory_alloc_func,
+        {size_val},
+        "struct_obj"
+    );
+    
+    // 获取数据区域指针
+    auto data_ptr = builder.CreateCall(runtime_manager->getRuntimeFunction("nova_memory_get_data"), {struct_ptr});
+    auto byte_ptr = builder.CreateBitCast(data_ptr, llvm::PointerType::get(builder.getInt8Ty(), 0));
+    
+    // 当前偏移量
+    size_t offset = 0;
+    
+    // 为每个字段设置值
+    for (const auto& field_info : field_data) {
+        VarType field_type = field_info.second.first;
+        llvm::Value* field_value = field_info.second.second;
+        
+        // 根据字段类型确定存储方式
+        switch (field_type) {
+            case VarType::INT: {
+                auto value_ptr_ptr = builder.CreateGEP(builder.getInt8Ty(), byte_ptr, 
+                    llvm::ConstantInt::get(builder.getInt64Ty(), offset));
+                auto value_ptr = builder.CreateBitCast(value_ptr_ptr, 
+                    llvm::PointerType::get(builder.getInt64Ty(), 0));
+                
+                builder.CreateStore(field_value, value_ptr);
+                break;
+            }
+            case VarType::FLOAT: {
+                auto value_ptr_ptr = builder.CreateGEP(builder.getInt8Ty(), byte_ptr, 
+                    llvm::ConstantInt::get(builder.getInt64Ty(), offset));
+                auto value_ptr = builder.CreateBitCast(value_ptr_ptr, 
+                    llvm::PointerType::get(builder.getDoubleTy(), 0));
+                
+                builder.CreateStore(field_value, value_ptr);
+                break;
+            }
+            case VarType::BOOL: {
+                auto value_ptr_ptr = builder.CreateGEP(builder.getInt8Ty(), byte_ptr, 
+                    llvm::ConstantInt::get(builder.getInt64Ty(), offset));
+                auto value_ptr = builder.CreateBitCast(value_ptr_ptr, 
+                    llvm::PointerType::get(builder.getInt1Ty(), 0));
+                
+                builder.CreateStore(field_value, value_ptr);
+                break;
+            }
+            case VarType::STRING:
+            case VarType::STRUCT:
+            case VarType::DICT:
+            case VarType::LIST: {
+                auto value_ptr_ptr = builder.CreateGEP(builder.getInt8Ty(), byte_ptr, 
+                    llvm::ConstantInt::get(builder.getInt64Ty(), offset));
+                auto value_ptr = builder.CreateBitCast(value_ptr_ptr, 
+                    llvm::PointerType::get(llvm::PointerType::get(runtime_manager->getNovaMemoryBlockType(), 0), 0));
+                
+                builder.CreateStore(field_value, value_ptr);
+                
+                // 对于引用类型，需要增加引用计数
+                auto retain_func = runtime_manager->getRuntimeFunction("nova_memory_retain");
+                builder.CreateCall(retain_func, {field_value});
+                break;
+            }
+            default:
+                ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                            "不支持的结构体字段类型: " + var_type_to_string(field_type),
+                            struct_lit->line, __FILE__, __LINE__);
+                break;
+        }
+        
+        // 更新偏移量
+        offset += get_type_align(field_type);
+    }
+
+    return struct_ptr;
+}

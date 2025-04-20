@@ -38,7 +38,7 @@ int Call::visit_expr(VarType &result) {
     param_types[i] = arg_type;
   }
 
-  const std::unique_ptr<ASTNode> &node = ctx.get_func(name);
+  const std::shared_ptr<ASTNode> &node = ctx.get_func(name);
   if (!node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line, __FILE__, __LINE__);
     return -1;

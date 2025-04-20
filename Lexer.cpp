@@ -97,7 +97,7 @@ std::vector<Token> Lexer::tokenize() {
             else tokens.emplace_back(TOK_ID, id, line);
             continue;
         }
-        if (std::isdigit(c) || c == '.' ||
+        if (std::isdigit(c) ||
             (c == '-' &&
              (tokens.back().type == TOK_PLUS || tokens.back().type == TOK_MINUS ||
               tokens.back().type == TOK_STAR ||
@@ -182,7 +182,7 @@ std::vector<Token> Lexer::tokenize() {
         }
         if (c == '/') {
             if (pos + 1 < input.size() && input[pos + 1] == '/') {
-                tokens.emplace_back(TOK_SLASH, "//", line);
+                tokens.emplace_back(TOK_DSLASH, "//", line);
                 pos += 2;
                 continue;
             } else {
@@ -226,6 +226,31 @@ std::vector<Token> Lexer::tokenize() {
             pos++;
             continue;
         }
+        if (c == '{') {
+            tokens.emplace_back(TOK_LBRACE, "{", line);
+            pos++;
+            continue;
+        }
+        if (c == '}') {
+            tokens.emplace_back(TOK_RBRACE, "}", line);
+            pos++;
+            continue;
+        }
+        if (c == '[') {
+            tokens.emplace_back(TOK_LBRACKET, "[", line);
+            pos++;
+            continue;
+        }
+        if (c == ']') {
+            tokens.emplace_back(TOK_RBRACKET, "]", line);
+            pos++;
+            continue;
+        }
+        if (c == '.') {
+            tokens.emplace_back(TOK_DOT, ".", line);
+            pos++;
+            continue;
+        }
         ctx.add_error(ErrorHandler::ErrorLevel::LEXICAL,
                          "未知字符: " + std::string(1, c), line, __FILE__, __LINE__);
         pos++;
@@ -258,16 +283,25 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_ID: return "TOK_ID";
         case TOK_INT: return "TOK_INT";
         case TOK_FLOAT: return "TOK_FLOAT";
-        case TOK_ASSIGN: return "TOK_ASSIGN";
-        case TOK_PLUSPLUS: return "TOK_PLUSPLUS";
+        case TOK_STRING: return "TOK_STRING";
         case TOK_PLUS: return "TOK_PLUS";
         case TOK_MINUS: return "TOK_MINUS";
         case TOK_STAR: return "TOK_STAR";
         case TOK_SLASH: return "TOK_SLASH";
-        case TOK_LT: return "TOK_LT";
+        case TOK_DSLASH: return "TOK_DSLASH";
+        case TOK_ASSIGN: return "TOK_ASSIGN";
         case TOK_EQEQ: return "TOK_EQEQ";
+        case TOK_LT: return "TOK_LT";
         case TOK_GT: return "TOK_GT";
         case TOK_GTEQ: return "TOK_GTEQ";
+        case TOK_LPAREN: return "TOK_LPAREN";
+        case TOK_RPAREN: return "TOK_RPAREN";
+        case TOK_LBRACE: return "TOK_LBRACE";
+        case TOK_RBRACE: return "TOK_RBRACE";
+        case TOK_LBRACKET: return "TOK_LBRACKET";
+        case TOK_RBRACKET: return "TOK_RBRACKET";
+        case TOK_COMMA: return "TOK_COMMA";
+        case TOK_COLON: return "TOK_COLON";
         case TOK_TRUE: return "TOK_TRUE";
         case TOK_FALSE: return "TOK_FALSE";
         case TOK_AND: return "TOK_AND";
@@ -276,26 +310,24 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_DEF: return "TOK_DEF";
         case TOK_RETURN: return "TOK_RETURN";
         case TOK_WHILE: return "TOK_WHILE";
-        case TOK_COLON: return "TOK_COLON";
-        case TOK_LPAREN: return "TOK_LPAREN";
-        case TOK_RPAREN: return "TOK_RPAREN";
-        case TOK_COMMA: return "TOK_COMMA";
+        case TOK_IF: return "TOK_IF";
+        case TOK_ELSE: return "TOK_ELSE";
+        case TOK_ELIF: return "TOK_ELIF";
+        case TOK_FOR: return "TOK_FOR";
+        case TOK_IN: return "TOK_IN";
+        case TOK_RANGE: return "TOK_RANGE";
         case TOK_NEWLINE: return "TOK_NEWLINE";
         case TOK_INDENT: return "TOK_INDENT";
         case TOK_DEDENT: return "TOK_DEDENT";
         case TOK_EOF: return "TOK_EOF";
         case TOK_PRINT: return "TOK_PRINT";
-        case TOK_FOR: return "TOK_FOR";
-        case TOK_IN: return "TOK_IN";
-        case TOK_RANGE: return "TOK_RANGE";
-        case TOK_IF: return "TOK_IF";
-        case TOK_ELSE: return "TOK_ELSE";
-        case TOK_ELIF: return "TOK_ELIF";
-        case TOK_GLOBAL: return "TOK_GLOBAL";
+        case TOK_PLUSPLUS: return "TOK_PLUSPLUS";
         case TOK_PLUSEQ: return "TOK_PLUSEQ";
         case TOK_MINUSEQ: return "TOK_MINUSEQ";
         case TOK_STAREQ: return "TOK_STAREQ";
         case TOK_SLASHEQ: return "TOK_SLASHEQ";
+        case TOK_GLOBAL: return "TOK_GLOBAL";
+        case TOK_DOT: return "TOK_DOT";
         default: return "UNKNOWN";
     }
 }

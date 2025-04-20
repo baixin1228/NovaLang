@@ -26,6 +26,9 @@ int Assign::visit_stmt(VarType &result) {
       is_global = true;
     }
   }
+  if (type == VarType::STRUCT) {
+    ctx.add_global_struct(var, value);
+  }
   result = type;
   return 0;
 }

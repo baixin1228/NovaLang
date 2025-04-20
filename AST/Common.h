@@ -7,6 +7,9 @@ enum class VarType {
     FLOAT,
     BOOL,
     STRING,
+    STRUCT,
+    DICT,
+    LIST,
     NONE
 };
 
