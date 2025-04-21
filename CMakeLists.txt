@@ -130,7 +130,7 @@ find_package(ICU REQUIRED COMPONENTS uc i18n)
 
 # 编译运行时库
 add_library(novalang_runtime SHARED
-    Runtime/runtime.c
+    Runtime/nova_string.c
     Runtime/nova_memory_manager.c
 )
 set_target_properties(novalang_runtime PROPERTIES

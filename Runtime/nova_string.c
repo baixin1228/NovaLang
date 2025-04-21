@@ -1,4 +1,4 @@
-#include "runtime.h"
+#include "nova_string.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
