@@ -2,7 +2,7 @@
 #include "ASTNode.h"
 #include "Function.h"
 
-void TypeChecker::check()
+int TypeChecker::check()
 {
   auto &stmts = ctx.get_ast();
 
@@ -11,7 +11,7 @@ void TypeChecker::check()
       VarType result;
       int ret = stmt->visit_stmt(result);
       if (ret == -1) {
-        return;
+        return -1;
       }
     }
   }
@@ -29,4 +29,5 @@ void TypeChecker::check()
       }
       it++;
   }
+  return 0;
 }

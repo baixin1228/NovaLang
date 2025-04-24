@@ -11,7 +11,7 @@ class TypeChecker {
   public:
     TypeChecker(Context &ctx) : ctx(ctx) {}
 
-    void check();
+    int check();
 
     void add_error(ErrorHandler::ErrorLevel level, const std::string& msg, int line) {
         ctx.add_error(level, msg, line, __FILE__, __LINE__);

@@ -9,14 +9,15 @@ int BinOp::visit_stmt(VarType &result) {
 int BinOp::visit_expr(VarType &result) {
   VarType left_type;
   VarType right_type;
-  int ret = left->visit_expr(left_type);
-  if (ret == -1) {
-    return -1;
-  }
-  ret = right->visit_expr(right_type);
-  if (ret == -1) {
-    return -1;
-  }
+  VarType left_ori_type;
+  VarType right_ori_type;
+  VarType left_expected_type = VarType::NONE;
+  VarType right_expected_type = VarType::NONE;
+
+  left->visit_expr(left_type);
+  right->visit_expr(right_type);
+  left_ori_type = left_type;
+  right_ori_type = right_type;
 
   if (op == "==" || op == "!=") {
     if (left_type != right_type) {
@@ -103,12 +104,14 @@ llvm::Value *BinOp::gencode_expr(VarType expected_type) {
   VarType left_type;
   VarType right_type;
   VarType left_ori_type;
+  VarType right_ori_type;
   VarType left_expected_type = VarType::NONE;
   VarType right_expected_type = VarType::NONE;
 
   left->visit_expr(left_type);
   right->visit_expr(right_type);
   left_ori_type = left_type;
+  right_ori_type = right_type;
 
   // 检查是否是字符串连接操作
   bool is_string_concat = op == "+" && (left_type == VarType::STRING ||
@@ -246,21 +249,73 @@ llvm::Value *BinOp::gencode_expr(VarType expected_type) {
     }
   }
   if (op == "<") {
+    // 处理布尔类型
+    if (left_ori_type == VarType::BOOL) {
+      left_value = ctx.builder->CreateZExt(left_value, ctx.builder->getInt64Ty());
+    }
+    if (right_ori_type == VarType::BOOL) {
+      right_value = ctx.builder->CreateZExt(right_value, ctx.builder->getInt64Ty());
+    }
+    
+    // 如果有一个是布尔值，将类型统一为INT进行比较
+    if (left_ori_type == VarType::BOOL || right_ori_type == VarType::BOOL) {
+      return ctx.builder->CreateICmpSLT(left_value, right_value, "cmp");
+    }
+    
     return left_ori_type == VarType::INT
                ? ctx.builder->CreateICmpSLT(left_value, right_value, "cmp")
                : ctx.builder->CreateFCmpOLT(left_value, right_value, "fcmp");
   }
   if (op == ">") {
+    // 处理布尔类型
+    if (left_ori_type == VarType::BOOL) {
+      left_value = ctx.builder->CreateZExt(left_value, ctx.builder->getInt64Ty());
+    }
+    if (right_ori_type == VarType::BOOL) {
+      right_value = ctx.builder->CreateZExt(right_value, ctx.builder->getInt64Ty());
+    }
+    
+    // 如果有一个是布尔值，将类型统一为INT进行比较
+    if (left_ori_type == VarType::BOOL || right_ori_type == VarType::BOOL) {
+      return ctx.builder->CreateICmpSGT(left_value, right_value, "cmp");
+    }
+    
     return left_ori_type == VarType::INT
                ? ctx.builder->CreateICmpSGT(left_value, right_value, "cmp")
                : ctx.builder->CreateFCmpOGT(left_value, right_value, "fcmp");
   }
   if (op == ">=") {
+    // 处理布尔类型
+    if (left_ori_type == VarType::BOOL) {
+      left_value = ctx.builder->CreateZExt(left_value, ctx.builder->getInt64Ty());
+    }
+    if (right_ori_type == VarType::BOOL) {
+      right_value = ctx.builder->CreateZExt(right_value, ctx.builder->getInt64Ty());
+    }
+    
+    // 如果有一个是布尔值，将类型统一为INT进行比较
+    if (left_ori_type == VarType::BOOL || right_ori_type == VarType::BOOL) {
+      return ctx.builder->CreateICmpSGE(left_value, right_value, "cmp");
+    }
+    
     return left_ori_type == VarType::INT
                ? ctx.builder->CreateICmpSGE(left_value, right_value, "cmp")
                : ctx.builder->CreateFCmpOGE(left_value, right_value, "fcmp");
   }
   if (op == "<=") {
+    // 处理布尔类型
+    if (left_ori_type == VarType::BOOL) {
+      left_value = ctx.builder->CreateZExt(left_value, ctx.builder->getInt64Ty());
+    }
+    if (right_ori_type == VarType::BOOL) {
+      right_value = ctx.builder->CreateZExt(right_value, ctx.builder->getInt64Ty());
+    }
+    
+    // 如果有一个是布尔值，将类型统一为INT进行比较
+    if (left_ori_type == VarType::BOOL || right_ori_type == VarType::BOOL) {
+      return ctx.builder->CreateICmpSLE(left_value, right_value, "cmp");
+    }
+    
     return left_ori_type == VarType::INT
                ? ctx.builder->CreateICmpSLE(left_value, right_value, "cmp")
                : ctx.builder->CreateFCmpOLE(left_value, right_value, "fcmp");

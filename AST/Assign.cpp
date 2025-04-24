@@ -9,6 +9,8 @@ int Assign::visit_stmt(VarType &result) {
     return -1;
   }
 
+  std::cout << "Assign::visit_stmt: " << var << " " << var_type_to_string(type)
+            << std::endl;
   if (add_var_info(var) == 0) {
     auto &var_info = lookup_var_info(var);
     var_info.type = type;
@@ -32,6 +34,7 @@ int Assign::visit_stmt(VarType &result) {
     ctx.add_global_struct(var, value);
   }
   result = type;
+  std::cout << "Assign::visit_stmt: " << var << " " << var_type_to_string(type) << std::endl;
   return 0;
 }
 

@@ -48,6 +48,9 @@ llvm::Value *Variable::gencode_expr(VarType expected_type) {
     if (expected_type != VarType::NONE && expected_type == VarType::FLOAT) {
       // 隐式类型转换
       return ctx.builder->CreateSIToFP(load, ctx.builder->getDoubleTy());
+    } else if (expected_type != VarType::NONE && expected_type == VarType::BOOL) {
+      // 隐式类型转换，0 为 False，非 0 为 True
+      return ctx.builder->CreateICmpNE(load, llvm::ConstantInt::get(ctx.builder->getInt64Ty(), 0));
     }
     return load;
   }
@@ -55,6 +58,10 @@ llvm::Value *Variable::gencode_expr(VarType expected_type) {
     auto load =
         ctx.builder->CreateLoad(ctx.builder->getDoubleTy(), ptr, name + "_load");
     load->setAlignment(llvm::Align(get_type_align(type)));
+    if (expected_type != VarType::NONE && expected_type == VarType::BOOL) {
+      // 隐式类型转换，0.0 为 False，非 0.0 为 True
+      return ctx.builder->CreateFCmpUNE(load, llvm::ConstantFP::get(ctx.builder->getDoubleTy(), 0.0));
+    }
     return load;
   }
   case VarType::BOOL: {

@@ -8,9 +8,9 @@ int If::visit_stmt(VarType &result) {
     if (ret == -1) {
         return -1;
     }
-    if (cond_type != VarType::BOOL) {
+    if (cond_type != VarType::BOOL && cond_type != VarType::INT && cond_type != VarType::FLOAT) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                         "if 条件必须是 bool 类型，得到: " + var_type_to_string(cond_type), line, __FILE__, __LINE__);
+                         "if 条件必须是 bool、int 或 float 类型，得到: " + var_type_to_string(cond_type), line, __FILE__, __LINE__);
         return -1;
     }
 
@@ -32,9 +32,9 @@ int If::visit_stmt(VarType &result) {
         if (ret == -1) {
             return -1;
         }
-        if (elif_cond_type != VarType::BOOL) {
+        if (elif_cond_type != VarType::BOOL && elif_cond_type != VarType::INT && elif_cond_type != VarType::FLOAT) {
             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                             "elif 条件必须是 bool 类型，得到: " + var_type_to_string(elif_cond_type), line, __FILE__, __LINE__);
+                             "elif 条件必须是 bool、int 或 float 类型，得到: " + var_type_to_string(elif_cond_type), line, __FILE__, __LINE__);
             return -1;
         }
         for (auto& stmt : elif.second) {
@@ -87,7 +87,7 @@ int If::gencode_stmt() {
           : (elif_bbs.push_back(
                  llvm::BasicBlock::Create(*ctx.llvm_context, "elif1", ctx.current_function)),
              elif_bbs.back());
-  auto cond = condition->gencode_expr(VarType::NONE);
+  auto cond = condition->gencode_expr(VarType::BOOL);
   ctx.builder->CreateCondBr(cond, then_bb, next_bb);
 
   ctx.builder->SetInsertPoint(then_bb);
@@ -101,7 +101,7 @@ int If::gencode_stmt() {
   // Elif 分支
   for (size_t i = 0; i < elifs.size(); ++i) {
     ctx.builder->SetInsertPoint(elif_bbs[i]);
-    auto elif_cond = condition->gencode_expr(VarType::NONE);
+    auto elif_cond = elifs[i].first->gencode_expr(VarType::BOOL);
     auto elif_body_bb = llvm::BasicBlock::Create(
         *ctx.llvm_context, "elif_body" + std::to_string(i + 1), ctx.current_function);
     auto next_elif_bb =

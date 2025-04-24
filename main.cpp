@@ -160,7 +160,11 @@ int main(int argc, char* argv[]) {
     
     // 类型检查
     TypeChecker checker(ctx);
-    checker.check();
+    ret = checker.check();
+    if (ret != 0) {
+        ctx.print_errors();
+        return 1;
+    }
     
     if (ctx.has_errors()) {
 #ifdef DEBUG

@@ -28,8 +28,9 @@ VarInfo& Context::lookup_var_info(const std::string &name, int line) {
 #endif
         }
     }
-    throw std::runtime_error("variable not found: " + name +
-                             " line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
+    // throw std::runtime_error("variable not found: " + name +
+    //                          "source line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
+    return *new VarInfo{.line = line, .type = VarType::NONE};
 }
 
 int Context::add_func_info(const std::string &name) {
