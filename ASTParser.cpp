@@ -326,10 +326,16 @@ std::shared_ptr<ASTNode> ASTParser::parse_logic_and() {
 
 std::shared_ptr<ASTNode> ASTParser::parse_equality() {
     auto left = parse_comparison();
-    while (current().type == TOK_EQEQ) {
+    while (current().type == TOK_EQEQ || current().type == TOK_NEQ) {
         int ln = current().line;
-        std::string op = "==";
-        consume(TOK_EQEQ, __FILE__, __LINE__);
+        std::string op;
+        if (current().type == TOK_EQEQ) {
+            op = "==";
+            consume(TOK_EQEQ, __FILE__, __LINE__);
+        } else {
+            op = "!=";
+            consume(TOK_NEQ, __FILE__, __LINE__);
+        }
         auto right = parse_comparison();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
@@ -339,7 +345,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_equality() {
 
 std::shared_ptr<ASTNode> ASTParser::parse_comparison() {
     auto left = parse_term();
-    while (current().type == TOK_LT || current().type == TOK_GT || current().type == TOK_GTEQ) {
+    while (current().type == TOK_LT || current().type == TOK_GT || current().type == TOK_GTEQ || current().type == TOK_LTEQ) {
         int ln = current().line;
         std::string op;
         if (current().type == TOK_LT) {
@@ -348,9 +354,12 @@ std::shared_ptr<ASTNode> ASTParser::parse_comparison() {
         } else if (current().type == TOK_GT) {
             op = ">";
             consume(TOK_GT, __FILE__, __LINE__);
-        } else {
+        } else if (current().type == TOK_GTEQ) {
             op = ">=";
             consume(TOK_GTEQ, __FILE__, __LINE__);
+        } else {
+            op = "<=";
+            consume(TOK_LTEQ, __FILE__, __LINE__);
         }
         auto right = parse_term();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),
@@ -380,15 +389,28 @@ std::shared_ptr<ASTNode> ASTParser::parse_term() {
 
 std::shared_ptr<ASTNode> ASTParser::parse_factor() {
     auto left = parse_unary();
-    while (current().type == TOK_STAR || current().type == TOK_SLASH) {
+    while (current().type == TOK_STAR ||
+        current().type == TOK_SLASH ||
+        current().type == TOK_MODULO ||
+        current().type == TOK_EXPONENT ||
+        current().type == TOK_DSLASH) {
         int ln = current().line;
         std::string op;
         if (current().type == TOK_STAR) {
             op = "*";
             consume(TOK_STAR, __FILE__, __LINE__);
-        } else {
+        } else if (current().type == TOK_SLASH) {
             op = "/";
             consume(TOK_SLASH, __FILE__, __LINE__);
+        } else if (current().type == TOK_DSLASH) {
+            op = "//";
+            consume(TOK_DSLASH, __FILE__, __LINE__);
+        } else if (current().type == TOK_MODULO) {
+            op = "%";
+            consume(TOK_MODULO, __FILE__, __LINE__);
+        } else {
+            op = "**";
+            consume(TOK_EXPONENT, __FILE__, __LINE__);
         }
         auto right = parse_unary();
         left = std::make_unique<BinOp>(ctx, op, std::move(left),

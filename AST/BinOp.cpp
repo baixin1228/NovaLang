@@ -18,10 +18,10 @@ int BinOp::visit_expr(VarType &result) {
     return -1;
   }
 
-  if (op == "==") {
+  if (op == "==" || op == "!=") {
     if (left_type != right_type) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                    "无效类型用于 ==: " + var_type_to_string(left_type) + ", " +
+                    "无效类型用于 " + op + ": " + var_type_to_string(left_type) + ", " +
                         var_type_to_string(right_type),
                     line, __FILE__, __LINE__);
       return -1;
@@ -29,7 +29,7 @@ int BinOp::visit_expr(VarType &result) {
     result = VarType::BOOL;
     return 0;
   }
-  if (op == "<" || op == ">" || op == ">=") {
+  if (op == "<" || op == ">" || op == ">=" || op == "<=") {
     if (left_type != right_type ||
         (left_type != VarType::INT && left_type != VarType::FLOAT)) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
@@ -50,7 +50,7 @@ int BinOp::visit_expr(VarType &result) {
     result = VarType::BOOL;
     return 0;
   }
-  if (op == "+" || op == "-" || op == "*" || op == "/" || op == "//") {
+  if (op == "+" || op == "-" || op == "*" || op == "/" || op == "//" || op == "%") {
     if (left_type != right_type &&
         !(left_type == VarType::FLOAT && right_type == VarType::INT) &&
         !(left_type == VarType::INT && right_type == VarType::FLOAT)) {
@@ -66,6 +66,27 @@ int BinOp::visit_expr(VarType &result) {
     }
     if (left_type == VarType::FLOAT || right_type == VarType::FLOAT ||
         op == "/") {
+      result = VarType::FLOAT;
+    } else {
+      result = left_type;
+    }
+    return 0;
+  }
+  if (op == "**") {
+    if (left_type != right_type &&
+        !(left_type == VarType::FLOAT && right_type == VarType::INT) &&
+        !(left_type == VarType::INT && right_type == VarType::FLOAT)) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "类型不匹配在 " + op + ": " + var_type_to_string(left_type) + ", " + var_type_to_string(right_type),
+                    line, __FILE__, __LINE__);
+      return -1;
+    }
+    if (left_type != VarType::INT && left_type != VarType::FLOAT) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "无效类型用于 " + op + ": " + var_type_to_string(left_type), line, __FILE__, __LINE__);
+      return -1;
+    }
+    if (left_type == VarType::FLOAT || right_type == VarType::FLOAT) {
       result = VarType::FLOAT;
     } else {
       result = left_type;
@@ -182,6 +203,30 @@ llvm::Value *BinOp::gencode_expr(VarType expected_type) {
   if (op == "//") {
     return ctx.builder->CreateSDiv(left_value, right_value, "sdiv");
   }
+  if (op == "%") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateSRem(left_value, right_value, "srem")
+               : ctx.builder->CreateFRem(left_value, right_value, "frem");
+  }
+  if (op == "**") {
+    // For exponentiation, we need to call a math function
+    if (left_ori_type == VarType::FLOAT) {
+      auto pow_func = ctx.module->getOrInsertFunction("pow", 
+        llvm::FunctionType::get(ctx.builder->getDoubleTy(), 
+        {ctx.builder->getDoubleTy(), ctx.builder->getDoubleTy()}, false));
+      return ctx.builder->CreateCall(pow_func, {left_value, right_value}, "pow");
+    } else {
+      // For integer exponentiation, we'll need a custom implementation or loop
+      // For simplicity, cast to double and use pow
+      auto left_double = ctx.builder->CreateSIToFP(left_value, ctx.builder->getDoubleTy());
+      auto right_double = ctx.builder->CreateSIToFP(right_value, ctx.builder->getDoubleTy());
+      auto pow_func = ctx.module->getOrInsertFunction("pow", 
+        llvm::FunctionType::get(ctx.builder->getDoubleTy(), 
+        {ctx.builder->getDoubleTy(), ctx.builder->getDoubleTy()}, false));
+      auto result_double = ctx.builder->CreateCall(pow_func, {left_double, right_double}, "pow");
+      return ctx.builder->CreateFPToSI(result_double, ctx.builder->getInt64Ty(), "pow_int");
+    }
+  }
   if (op == "==") {
     if (left_ori_type == VarType::INT) {
       return ctx.builder->CreateICmpEQ(left_value, right_value, "eq");
@@ -189,6 +234,15 @@ llvm::Value *BinOp::gencode_expr(VarType expected_type) {
       return ctx.builder->CreateFCmpOEQ(left_value, right_value, "feq");
     } else {
       return ctx.builder->CreateICmpEQ(left_value, right_value, "eq");
+    }
+  }
+  if (op == "!=") {
+    if (left_ori_type == VarType::INT) {
+      return ctx.builder->CreateICmpNE(left_value, right_value, "ne");
+    } else if (left_ori_type == VarType::FLOAT) {
+      return ctx.builder->CreateFCmpONE(left_value, right_value, "fne");
+    } else {
+      return ctx.builder->CreateICmpNE(left_value, right_value, "ne");
     }
   }
   if (op == "<") {
@@ -205,6 +259,11 @@ llvm::Value *BinOp::gencode_expr(VarType expected_type) {
     return left_ori_type == VarType::INT
                ? ctx.builder->CreateICmpSGE(left_value, right_value, "cmp")
                : ctx.builder->CreateFCmpOGE(left_value, right_value, "fcmp");
+  }
+  if (op == "<=") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateICmpSLE(left_value, right_value, "cmp")
+               : ctx.builder->CreateFCmpOLE(left_value, right_value, "fcmp");
   }
   if (op == "and") {
     return ctx.builder->CreateAnd(left_value, right_value, "and");

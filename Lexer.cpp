@@ -165,22 +165,28 @@ std::vector<Token> Lexer::tokenize() {
             pos++;
             continue;
         }
-        if (c == '*' && pos + 1 < input.size() && input[pos + 1] == '=') {
-            tokens.emplace_back(TOK_STAREQ, "*=", line);
-            pos += 2;
-            continue;
-        }
         if (c == '*') {
-            tokens.emplace_back(TOK_STAR, "*", line);
-            pos++;
-            continue;
-        }
-        if (c == '/' && pos + 1 < input.size() && input[pos + 1] == '=') {
-            tokens.emplace_back(TOK_SLASHEQ, "/=", line);
-            pos += 2;
-            continue;
+            if (pos + 1 < input.size() && input[pos + 1] == '=') {
+                tokens.emplace_back(TOK_STAREQ, "*=", line);
+                pos += 2;
+                continue;
+            }
+            if (pos + 1 < input.size() && input[pos + 1] == '*') {
+                tokens.emplace_back(TOK_EXPONENT, "**", line);
+                pos += 2;
+                continue;
+            } else {
+                tokens.emplace_back(TOK_STAR, "*", line);
+                pos++;
+                continue;
+            }
         }
         if (c == '/') {
+            if (pos + 1 < input.size() && input[pos + 1] == '=') {
+              tokens.emplace_back(TOK_SLASHEQ, "/=", line);
+              pos += 2;
+              continue;
+            }
             if (pos + 1 < input.size() && input[pos + 1] == '/') {
                 tokens.emplace_back(TOK_DSLASH, "//", line);
                 pos += 2;
@@ -191,9 +197,19 @@ std::vector<Token> Lexer::tokenize() {
                 continue;
             }
         }
-        if (c == '<') {
-            tokens.emplace_back(TOK_LT, "<", line);
+        if (c == '%') {
+            tokens.emplace_back(TOK_MODULO, "%", line);
             pos++;
+            continue;
+        }
+        if (c == '<') {
+            pos++;
+            if (peek() == '=') {
+                tokens.emplace_back(TOK_LTEQ, "<=", line);
+                pos++;
+            } else {
+                tokens.emplace_back(TOK_LT, "<", line);
+            }
             continue;
         }
         if (c == '>') {
@@ -249,6 +265,17 @@ std::vector<Token> Lexer::tokenize() {
         if (c == '.') {
             tokens.emplace_back(TOK_DOT, ".", line);
             pos++;
+            continue;
+        }
+        if (c == '!') {
+            pos++;
+            if (peek() == '=') {
+                tokens.emplace_back(TOK_NEQ, "!=", line);
+                pos++;
+            } else {
+                ctx.add_error(ErrorHandler::ErrorLevel::LEXICAL,
+                              "无效的字符序列: ! 后必须跟随 =", line, __FILE__, __LINE__);
+            }
             continue;
         }
         ctx.add_error(ErrorHandler::ErrorLevel::LEXICAL,
@@ -328,6 +355,10 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_SLASHEQ: return "TOK_SLASHEQ";
         case TOK_GLOBAL: return "TOK_GLOBAL";
         case TOK_DOT: return "TOK_DOT";
+        case TOK_EXPONENT: return "TOK_EXPONENT";
+        case TOK_MODULO: return "TOK_MODULO";
+        case TOK_NEQ: return "TOK_NEQ";
+        case TOK_LTEQ: return "TOK_LTEQ";
         default: return "UNKNOWN";
     }
 }
