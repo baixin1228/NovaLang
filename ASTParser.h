@@ -149,6 +149,7 @@ public:
   std::shared_ptr<ASTNode> parse_struct_literal();
   std::shared_ptr<ASTNode> parse_dict_literal();
   std::shared_ptr<ASTNode> parse_list_literal();
+  std::shared_ptr<ASTNode> parse_assign_expr(std::vector<std::string>& ids);
   Token peek_next() const;
   void print_ast();
 };

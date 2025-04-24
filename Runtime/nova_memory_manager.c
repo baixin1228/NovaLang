@@ -3,7 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#if DEBUG
 #define DEBUG_MEMORY
+#endif
+
 // 调试信息打印宏
 #ifdef DEBUG_MEMORY
 #define DEBUG_PRINT(fmt, ...) fprintf(stderr, "[MEMORY] " fmt "\n", ##__VA_ARGS__)

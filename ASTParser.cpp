@@ -103,12 +103,23 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         consume(TOK_ID, __FILE__, __LINE__);
         if (current().type == TOK_ASSIGN) {
             consume(TOK_ASSIGN, __FILE__, __LINE__);
-            auto value = parse_expr();
+            
+            // If the next token is another ID and it's followed by assignment,
+            // we have a chained assignment
+            std::vector<std::string> ids = {id};
+            auto value = parse_assign_expr(ids);
+            
             while (current().type == TOK_NEWLINE) {
                 consume(TOK_NEWLINE, __FILE__, __LINE__);
             }
-            std::cout << id << " = " << (value == nullptr) << "\n" << std::endl;
-            return std::make_unique<Assign>(ctx, id, std::move(value), ln);
+            
+            // Process the assignments in reverse order
+            auto result = std::move(value);
+            for (int i = ids.size() - 1; i >= 0; --i) {
+                result = std::make_unique<Assign>(ctx, ids[i], std::move(result), ln);
+            }
+            
+            return result;
         }
         if (current().type == TOK_PLUSEQ) {
             consume(TOK_PLUSEQ, __FILE__, __LINE__);
@@ -516,7 +527,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_primary() {
         }
         return parse_list_literal();
     }
-    throw std::runtime_error("Unexpected token: " + current().value + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
+    throw std::runtime_error("Unexpected token: " + current().value + " source_line: " + std::to_string(current().line) + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
     return nullptr;
 }
 
@@ -693,4 +704,27 @@ std::shared_ptr<ASTNode> ASTParser::parse_list_literal() {
     
     consume(TOK_RBRACKET, __FILE__, __LINE__);
     return std::make_unique<ListLiteral>(ctx, std::move(elements), ln);
+}
+
+// Helper method to parse assignment expressions
+std::shared_ptr<ASTNode> ASTParser::parse_assign_expr(std::vector<std::string>& ids) {
+    // Check if we have a chained assignment
+    if (current().type == TOK_ID) {
+        std::string next_id = current().value;
+        consume(TOK_ID, __FILE__, __LINE__);
+        
+        if (current().type == TOK_ASSIGN) {
+            consume(TOK_ASSIGN, __FILE__, __LINE__);
+            
+            // Add the ID to our list and continue parsing
+            ids.push_back(next_id);
+            return parse_assign_expr(ids);
+        } else {
+            // Not a chained assignment, backtrack
+            pos--;
+        }
+    }
+    
+    // Parse the rightmost expression
+    return parse_expr();
 }

@@ -25,7 +25,8 @@ llvm::Value *Variable::gencode_expr(VarType expected_type) {
   auto ptr = lookup_var_llvm_obj(name);
   if (!ptr) {
     throw std::runtime_error("未定义的变量: " + name +
-                             " code:" + std::to_string(line) +
+                             " source:" + std::to_string(line) +
+                             " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
     return nullptr;
   }

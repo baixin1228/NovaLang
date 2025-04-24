@@ -10,7 +10,8 @@ int CodeGen::generate_global_variable(Assign &assign) {
   VarType type = var_info.type;
   if (type == VarType::NONE) {
     throw std::runtime_error("未定义的变量: " + assign.var +
-                             " code:" + std::to_string(assign.line) +
+                             " source:" + std::to_string(assign.line) +
+                             " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
     return -1;
   }
@@ -50,6 +51,12 @@ int CodeGen::generate_global_variable(Assign &assign) {
     global_var->setAlignment(llvm::Align(get_type_align(type)));
 
     assign.add_var_llvm_obj(assign.var, global_var);
+  }
+
+  if (auto *assign_value = dynamic_cast<Assign *>(assign.value.get())) {
+    if (generate_global_variable(*assign_value) == -1) {
+      return -1;
+    }
   }
   return 0;
 }

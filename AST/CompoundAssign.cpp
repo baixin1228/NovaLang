@@ -64,7 +64,8 @@ int CompoundAssign::gencode_stmt() {
   VarType type = var_info.type;
   if (type == VarType::NONE) {
     throw std::runtime_error("未定义的变量: " + var +
-                             " code:" + std::to_string(line) +
+                             " source:" + std::to_string(line) +
+                             " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
   }
 
@@ -78,7 +79,8 @@ int CompoundAssign::gencode_stmt() {
   auto ptr = lookup_var_llvm_obj(var);
   if (!ptr) {
     throw std::runtime_error("未定义的变量: " + var +
-                             " code:" + std::to_string(line) +
+                             " source:" + std::to_string(line) +
+                             " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
   }
 

@@ -61,10 +61,18 @@ int Print::gencode_stmt() {
       printf_args.push_back(ctx.builder->CreateCall(to_system_func, {value}));
       break;
     }
-    case VarType::BOOL:
-      format_str += "%d ";
-      printf_args.push_back(value);
+    case VarType::BOOL: {
+      // 使用条件选择而不是直接打印数字
+      auto true_str = ctx.builder->CreateGlobalStringPtr("True", "true_str");
+      auto false_str = ctx.builder->CreateGlobalStringPtr("False", "false_str");
+      
+      // 创建条件选择：如果bool值为true，选择True字符串，否则选择False字符串
+      auto str_ptr = ctx.builder->CreateSelect(value, true_str, false_str);
+      
+      format_str += "%s ";
+      printf_args.push_back(str_ptr);
       break;
+    }
     default:
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "不支持的打印类型: " + var_type_to_string(type), line,
