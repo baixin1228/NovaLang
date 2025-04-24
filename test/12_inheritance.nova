@@ -1,0 +1,121 @@
+# Test: Inheritance and Polymorphism
+
+# Base class
+class Animal:
+    def __init__(self, name, species):
+        self.name = name
+        self.species = species
+    
+    def make_sound(self):
+        print("Some generic animal sound")
+    
+    def describe(self):
+        print(f"I am {self.name}, a {self.species}")
+
+# Derived class 1
+class Dog(Animal):
+    def __init__(self, name, breed):
+        super().__init__(name, "Dog")
+        self.breed = breed
+    
+    def make_sound(self):
+        print("Woof!")
+    
+    def fetch(self):
+        print(f"{self.name} is fetching a ball!")
+
+# Derived class 2
+class Cat(Animal):
+    def __init__(self, name, color):
+        super().__init__(name, "Cat")
+        self.color = color
+    
+    def make_sound(self):
+        print("Meow!")
+    
+    def hunt(self):
+        print(f"{self.name} is hunting mice!")
+
+# Create instances
+animal = Animal("Generic Animal", "Unknown")
+dog = Dog("Buddy", "Golden Retriever")
+cat = Cat("Whiskers", "Tabby")
+
+# Base class methods
+print("--- Base Animal ---")
+animal.describe()
+animal.make_sound()
+
+# Dog methods
+print("\n--- Dog ---")
+dog.describe()
+dog.make_sound()
+dog.fetch()
+print(f"Breed: {dog.breed}")
+
+# Cat methods
+print("\n--- Cat ---")
+cat.describe()
+cat.make_sound()
+cat.hunt()
+print(f"Color: {cat.color}")
+
+# Polymorphism with a function
+def animal_sounds(animals):
+    for animal in animals:
+        print(f"{animal.name}: ", end="")
+        animal.make_sound()
+
+print("\n--- Polymorphism ---")
+animals = [animal, dog, cat]
+animal_sounds(animals)
+
+# Multiple inheritance
+class Bird(Animal):
+    def __init__(self, name, can_fly=True):
+        super().__init__(name, "Bird")
+        self.can_fly = can_fly
+    
+    def make_sound(self):
+        print("Tweet!")
+    
+    def fly(self):
+        if self.can_fly:
+            print(f"{self.name} is flying high!")
+        else:
+            print(f"{self.name} cannot fly!")
+
+class Pet:
+    def __init__(self, owner):
+        self.owner = owner
+    
+    def get_owner(self):
+        print(f"Owner: {self.owner}")
+
+# Multiple inheritance
+class Parrot(Bird, Pet):
+    def __init__(self, name, owner, vocabulary=None):
+        Bird.__init__(self, name)
+        Pet.__init__(self, owner)
+        self.vocabulary = vocabulary or []
+    
+    def speak(self):
+        if not self.vocabulary:
+            print(f"{self.name} has nothing to say.")
+        else:
+            print(f"{self.name} says: {', '.join(self.vocabulary)}")
+    
+    def learn(self, word):
+        self.vocabulary.append(word)
+        print(f"{self.name} learned to say: {word}")
+
+# Create a parrot
+parrot = Parrot("Rio", "Emma", ["Hello", "Good morning"])
+print("\n--- Multiple Inheritance (Parrot) ---")
+parrot.describe()  # From Animal
+parrot.make_sound()  # From Bird
+parrot.fly()  # From Bird
+parrot.get_owner()  # From Pet
+parrot.speak()  # From Parrot
+parrot.learn("Goodbye")
+parrot.speak() 

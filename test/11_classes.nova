@@ -1,0 +1,115 @@
+# Test: Classes and Object-Oriented Programming
+
+# Basic class definition
+class Person:
+    # Constructor
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+    
+    # Method
+    def greet(self):
+        print("Hello, my name is", self.name)
+    
+    # Method with parameters
+    def celebrate_birthday(self):
+        self.age += 1
+        print(self.name, "is now", self.age, "years old")
+
+# Create instances
+person1 = Person("Alice", 30)
+person2 = Person("Bob", 25)
+
+# Access properties
+print("Person 1:", person1.name, person1.age)
+print("Person 2:", person2.name, person2.age)
+
+# Call methods
+person1.greet()
+person2.greet()
+person1.celebrate_birthday()
+
+# Inheritance
+class Student(Person):
+    def __init__(self, name, age, student_id):
+        super().__init__(name, age)
+        self.student_id = student_id
+    
+    # Override method
+    def greet(self):
+        print("Hi, I'm", self.name, "and my student ID is", self.student_id)
+    
+    # Additional method
+    def study(self, subject):
+        print(self.name, "is studying", subject)
+
+# Create student instance
+student1 = Student("Charlie", 20, "S12345")
+student1.greet()
+student1.celebrate_birthday()  # Inherited method
+student1.study("Computer Science")
+
+# Class with properties
+class Rectangle:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+    
+    # Property (getter)
+    @property
+    def area(self):
+        return self.width * self.height
+    
+    # Method
+    def resize(self, width, height):
+        self.width = width
+        self.height = height
+
+rect = Rectangle(5, 3)
+print("Rectangle: width =", rect.width, "height =", rect.height)
+print("Area:", rect.area)
+rect.resize(10, 4)
+print("New area:", rect.area)
+
+# Static methods
+class MathUtils:
+    @staticmethod
+    def add(x, y):
+        return x + y
+    
+    @staticmethod
+    def multiply(x, y):
+        return x * y
+
+print("5 + 3 =", MathUtils.add(5, 3))
+print("4 * 6 =", MathUtils.multiply(4, 6))
+
+# Private attributes
+class BankAccount:
+    def __init__(self, owner, balance=0):
+        self.owner = owner
+        self.__balance = balance  # Private attribute
+    
+    def deposit(self, amount):
+        if amount > 0:
+            self.__balance += amount
+            print("Deposited", amount)
+            print("New balance:", self.__balance)
+        else:
+            print("Invalid deposit amount")
+    
+    def withdraw(self, amount):
+        if 0 < amount <= self.__balance:
+            self.__balance -= amount
+            print("Withdrew", amount)
+            print("New balance:", self.__balance)
+        else:
+            print("Invalid withdrawal amount")
+    
+    def get_balance(self):
+        return self.__balance
+
+account = BankAccount("David", 1000)
+account.deposit(500)
+account.withdraw(200)
+print("Balance:", account.get_balance()) 

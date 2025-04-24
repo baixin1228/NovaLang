@@ -1,0 +1,90 @@
+# Test: Complex mathematical operations
+
+# Pi approximation using Leibniz formula (from test.nova)
+def leibniz_pi(n_terms):
+    pi = 0.0
+    sign = 1.0
+    for i in range(n_terms):
+        term = 1.0 / (2.0 * i + 1.0)
+        pi += sign * term
+        sign *= -1.0
+    return 4.0 * pi
+
+# Calculate approximation with fewer terms for testing
+pi_approx = leibniz_pi(1000)
+print("Pi approximation:", pi_approx)
+
+# Factorial calculation
+def factorial(n):
+    if n <= 1:
+        return 1
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+
+print("Factorial of 5:", factorial(5))
+
+# Fibonacci sequence
+def fibonacci(n):
+    if n <= 0:
+        return 0
+    elif n == 1:
+        return 1
+    a, b = 0, 1
+    for i in range(2, n + 1):
+        c = a + b
+        a, b = b, c
+    return b
+
+print("Fibonacci(10):", fibonacci(10))
+
+# Calculate mean and standard deviation
+def mean(numbers):
+    total = 0.0
+    for num in numbers:
+        total += num
+    return total / len(numbers)
+
+def std_dev(numbers):
+    avg = mean(numbers)
+    variance = 0.0
+    for num in numbers:
+        variance += (num - avg) ** 2
+    return (variance / len(numbers)) ** 0.5
+
+data = [2, 4, 4, 4, 5, 5, 7, 9]
+print("Mean:", mean(data))
+print("Standard Deviation:", std_dev(data))
+
+# Prime number check
+def is_prime(n):
+    if n <= 1:
+        return False
+    if n <= 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+        i += 6
+    return True
+
+for i in range(20):
+    if is_prime(i):
+        print(i, "is prime")
+
+# Basic numerical algorithms
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+print("GCD of 48 and 18:", gcd(48, 18))
+
+def lcm(a, b):
+    return a * b // gcd(a, b)
+
+print("LCM of 12 and 15:", lcm(12, 15)) 

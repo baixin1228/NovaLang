@@ -1,0 +1,60 @@
+# Test: Variable scopes
+
+# Global variable
+global_var = 100
+print("Initial global_var:", global_var)
+
+# Function that reads global variable
+def read_global():
+    print("Reading global_var from function:", global_var)
+
+read_global()
+
+# Function that modifies global variable
+def modify_global():
+    global global_var
+    global_var = 200
+    print("Modified global_var in function:", global_var)
+
+modify_global()
+print("Global global_var after modification:", global_var)
+
+# Local variables in functions
+def local_vars():
+    local_var = 50
+    print("Local variable in function:", local_var)
+
+local_vars()
+
+# Variable shadowing
+shadow_var = "global"
+print("Global shadow_var:", shadow_var)
+
+def shadow_test():
+    shadow_var = "local"
+    print("Local shadow_var:", shadow_var)
+
+shadow_test()
+print("Global shadow_var after function call:", shadow_var)
+
+# Nested scope
+def outer_function():
+    outer_var = "outer"
+    
+    def inner_function():
+        inner_var = "inner"
+        print("In inner_function - outer_var:", outer_var)
+        print("In inner_function - inner_var:", inner_var)
+    
+    print("In outer_function - outer_var:", outer_var)
+    inner_function()
+    # This would cause an error: print("inner_var:", inner_var)
+
+outer_function()
+
+# Block scope (if, for, while)
+for i in range(3):
+    block_var = i * 10
+    print("Block variable in loop:", block_var)
+
+print("Loop variable after loop:", i)  # May or may not work depending on language rules 

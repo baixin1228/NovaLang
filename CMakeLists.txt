@@ -163,3 +163,9 @@ target_link_libraries(nova PRIVATE
     ICU::i18n
     novalang_runtime
 )
+
+# Enable testing
+enable_testing()
+
+# Add the test directory
+add_subdirectory(test)

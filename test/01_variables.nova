@@ -1,0 +1,35 @@
+# Test: Variable declarations and assignments
+
+# Integer variables
+a = 10
+b = 20
+c = a + b
+print("Integer variables:", a, b, c)
+
+# Float variables
+x = 3.14
+y = 2.71
+z = x * y
+print("Float variables:", x, y, z)
+
+# Boolean variables
+is_true = True
+is_false = False
+is_result = is_true and is_false
+print("Boolean variables:", is_true, is_false, is_result)
+
+# String variables
+greeting = "Hello"
+name = "Nova"
+message = greeting + " " + name
+print("String variables:", greeting, name, message)
+
+# Variable reassignment
+value = 5
+print("Before reassignment:", value)
+value = 10
+print("After reassignment:", value)
+
+# Multiple assignments
+value1 = value2 = 50
+print("Multiple assignments:", value1, value2) 

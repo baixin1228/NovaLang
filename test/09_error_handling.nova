@@ -1,0 +1,61 @@
+# Test: Error handling
+
+# Division by zero
+try:
+    result = 10 / 0
+    print("This should not be printed")
+except:
+    print("Caught division by zero error")
+
+# Type error
+try:
+    x = 5
+    y = "hello"
+    z = x + y  # Should cause a type error
+    print("This should not be printed")
+except:
+    print("Caught type error")
+
+# Index out of bounds
+try:
+    arr = [1, 2, 3]
+    value = arr[10]  # Should cause an index error
+    print("This should not be printed")
+except:
+    print("Caught index out of bounds error")
+
+# Undefined variable
+try:
+    print(undefined_var)  # Should cause a name error
+    print("This should not be printed")
+except:
+    print("Caught undefined variable error")
+
+# Custom error handling function
+def safe_divide(a, b):
+    if b == 0:
+        return "Error: Division by zero"
+    return a / b
+
+print(safe_divide(10, 2))
+print(safe_divide(10, 0))
+
+# Nested try-except blocks
+try:
+    try:
+        result = 1 / 0
+        print("This should not be printed")
+    except:
+        print("Inner exception caught")
+        raise  # Re-throw the exception
+    print("This should not be printed")
+except:
+    print("Outer exception caught")
+
+# Finally block (if supported)
+try:
+    print("Trying something...")
+    result = 10 / 2
+    print("Result:", result)
+finally:
+    print("Finally block executed") 

@@ -1,0 +1,42 @@
+# Test: Operators
+
+# Arithmetic operators
+a = 10
+b = 3
+print("Addition:", a + b)
+print("Subtraction:", a - b)
+print("Multiplication:", a * b)
+print("Division:", a / b)
+print("Integer division:", a // b) # If supported
+print("Modulo:", a % b)
+print("Exponentiation:", a ** b) # If supported
+
+# Unary operators
+c = -a
+print("Negation:", c)
+
+# Comparison operators
+print("Equal:", a == b)
+print("Not equal:", a != b)
+print("Greater than:", a > b)
+print("Less than:", a < b)
+print("Greater than or equal:", a >= b)
+print("Less than or equal:", a <= b)
+
+# Logical operators
+x = True
+y = False
+print("AND:", x and y)
+print("OR:", x or y)
+print("NOT:", not x)
+
+# Compound assignment operators
+num = 5
+num += 2
+print("Add and assign:", num)
+num -= 1
+print("Subtract and assign:", num)
+num *= 3
+print("Multiply and assign:", num)
+num /= 2
+print("Divide and assign:", num) 

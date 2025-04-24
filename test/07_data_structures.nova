@@ -1,0 +1,58 @@
+# Test: Data structures
+
+# Struct (based on the test.nova example)
+person = { name = "John", age = 30 }
+print("Person:", person.name, person.age)
+
+# Nested structs
+address = { city = "New York", zip = 10001 }
+employee = { name = "Alice", age = 25, address = address }
+print("Employee:", employee.name, employee.address.city)
+
+# Struct modification
+person.age = 31
+print("Updated person:", person.name, person.age)
+
+# Creating struct with mixed types
+mixed = { id = 1, name = "Test", is_active = True, score = 9.5 }
+print("Mixed struct:", mixed.id, mixed.name, mixed.is_active, mixed.score)
+
+# Dictionaries (if supported differently from structs)
+dict1 = { "key1" = "value1", "key2" = 42 }
+print("Dictionary:", dict1["key1"], dict1["key2"])
+
+# Lists/arrays
+numbers = [1, 2, 3, 4, 5]
+print("List:", numbers)
+
+# Accessing list elements
+print("First element:", numbers[0])
+print("Last element:", numbers[4])
+
+# Modifying list elements
+numbers[2] = 30
+print("Modified list:", numbers)
+
+# List operations
+numbers.append(6)  # if supported
+print("After append:", numbers)
+
+numbers.remove(4)  # if supported
+print("After remove:", numbers)
+
+# Nested lists
+matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+print("Matrix:", matrix)
+print("Matrix element:", matrix[1][1])
+
+# Mixed data structures
+complex_struct = {
+    name = "Project",
+    id = 123,
+    team = [
+        { name = "Bob", role = "Developer" },
+        { name = "Carol", role = "Designer" }
+    ]
+}
+
+print("Complex struct:", complex_struct.name, complex_struct.team[0].name) 

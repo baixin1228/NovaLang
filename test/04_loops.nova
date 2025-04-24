@@ -1,0 +1,61 @@
+# Test: Loops
+
+# For loop with range
+print("For loop with range:")
+for i in range(5):
+    print(i)
+
+# For loop with start and end range
+print("For loop with start and end:")
+for i in range(2, 6):
+    print(i)
+
+# For loop with start, end and step
+print("For loop with step:")
+for i in range(0, 10, 2):
+    print(i)
+
+# Nested for loops
+print("Nested for loops:")
+for i in range(3):
+    for j in range(2):
+        print(i, j)
+
+# Break statement in a for loop
+print("For loop with break:")
+for i in range(10):
+    if i > 5:
+        break
+    print(i)
+
+# Continue statement in a for loop
+print("For loop with continue:")
+for i in range(5):
+    if i == 2:
+        continue
+    print(i)
+
+# While loop
+print("While loop:")
+count = 0
+while count < 5:
+    print(count)
+    count += 1
+
+# While loop with break
+print("While loop with break:")
+count = 0
+while True:
+    print(count)
+    count += 1
+    if count >= 3:
+        break
+
+# While loop with continue
+print("While loop with continue:")
+count = 0
+while count < 5:
+    count += 1
+    if count == 3:
+        continue
+    print(count) 

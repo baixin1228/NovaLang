@@ -56,6 +56,56 @@ Compile and run:
 ./compiler hello.nova
 ```
 
+## Testing
+
+NovaLang includes a comprehensive test suite to ensure language features work correctly. The test suite is organized into three main categories:
+
+1. **Basic Language Features**
+   - Variable declarations and assignments
+   - Operators
+   - Conditional statements
+   - Loops
+   - Functions
+
+2. **Advanced Language Features**
+   - Variable scopes
+   - Data structures
+   - Type inference
+   - Error handling
+   - Mathematical operations
+
+3. **Object-Oriented Features**
+   - Classes
+   - Inheritance
+   - Encapsulation
+
+### Running Tests
+
+#### Running All Tests
+
+To run all tests, use the provided script:
+```bash
+./run_tests.sh
+```
+
+#### Running Individual Tests
+
+To run a specific test, use:
+```bash
+./run_test.sh 01_variables  # Replace with the test name you want to run
+```
+
+#### Capturing Expected Output
+
+To capture the current output of tests as the expected output, use the provided script:
+```bash
+./capture_expected.sh
+```
+
+This will create files in the `test/expected/` directory, which will be used for verification in subsequent test runs.
+
+For more detailed information about the test suite, see the [test/README.md](test/README.md) file.
+
 ## Contributing
 
 We welcome contributions from the community! Here's how you can help:

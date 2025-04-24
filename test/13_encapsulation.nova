@@ -1,0 +1,156 @@
+# Test: Encapsulation and Access Modifiers
+
+# Class with private, protected, and public members
+class User:
+    def __init__(self, username, password, email):
+        self.username = username          # Public
+        self._email = email               # Protected (convention)
+        self.__password = password        # Private
+        self.__login_attempts = 0         # Private counter
+    
+    # Public methods
+    def display_info(self):
+        print(f"Username: {self.username}")
+        print(f"Email: {self._email}")
+        # Password is not displayed for security
+    
+    def login(self, password):
+        self.__login_attempts += 1
+        if password == self.__password:
+            print(f"Welcome, {self.username}!")
+            self.__reset_login_attempts()
+            return True
+        else:
+            print("Incorrect password!")
+            if self.__login_attempts >= 3:
+                print("Too many failed attempts. Account locked.")
+            return False
+    
+    def change_password(self, old_password, new_password):
+        if old_password == self.__password:
+            self.__password = new_password
+            print("Password changed successfully!")
+            return True
+        else:
+            print("Current password is incorrect!")
+            return False
+    
+    def get_login_attempts(self):
+        return self.__login_attempts
+    
+    # Protected method (convention)
+    def _update_email(self, new_email):
+        if "@" in new_email and "." in new_email:
+            self._email = new_email
+            print("Email updated successfully!")
+            return True
+        else:
+            print("Invalid email format!")
+            return False
+    
+    # Private method
+    def __reset_login_attempts(self):
+        self.__login_attempts = 0
+        print("Login attempts reset.")
+
+# Create a user
+user = User("johndoe", "secret123", "john@example.com")
+
+# Public attribute access
+print("\n--- Public Access ---")
+print(f"Username: {user.username}")
+user.username = "john_doe"  # Modify public attribute
+print(f"Modified username: {user.username}")
+
+# Protected attribute access (convention, still accessible)
+print("\n--- Protected Access ---")
+print(f"Email (protected, but accessible): {user._email}")
+user._update_email("john.doe@example.com")  # Call protected method
+
+# Private attribute access attempts
+print("\n--- Private Access ---")
+try:
+    print(f"Password: {user.__password}")  # This will fail
+except AttributeError as e:
+    print(f"Cannot access private attribute: {e}")
+
+try:
+    print(f"Login attempts: {user.__login_attempts}")  # This will fail
+except AttributeError as e:
+    print(f"Cannot access private attribute: {e}")
+
+try:
+    user.__reset_login_attempts()  # This will fail
+except AttributeError as e:
+    print(f"Cannot access private method: {e}")
+
+# Using public methods to interact with private attributes
+print("\n--- Access via Public Methods ---")
+print(f"Login attempts: {user.get_login_attempts()}")
+
+# Test login functionality
+print("\n--- Testing Login ---")
+user.login("wrong_password")  # Failed attempt
+print(f"Login attempts: {user.get_login_attempts()}")
+user.login("wrong_password")  # Failed attempt
+print(f"Login attempts: {user.get_login_attempts()}")
+user.login("secret123")       # Successful attempt
+print(f"Login attempts after successful login: {user.get_login_attempts()}")
+
+# Test password change
+print("\n--- Password Change ---")
+user.change_password("wrong_old_password", "new_password")  # Should fail
+user.change_password("secret123", "new_password")           # Should succeed
+user.login("secret123")  # Should fail with old password
+user.login("new_password")  # Should succeed with new password
+
+# Getter and Setter pattern
+class Temperature:
+    def __init__(self, celsius=0):
+        self.__celsius = celsius
+    
+    # Getter for celsius
+    @property
+    def celsius(self):
+        return self.__celsius
+    
+    # Setter for celsius
+    @celsius.setter
+    def celsius(self, value):
+        if value < -273.15:
+            print("Temperature below absolute zero is not possible!")
+            self.__celsius = -273.15
+        else:
+            self.__celsius = value
+    
+    # Getter for fahrenheit
+    @property
+    def fahrenheit(self):
+        return (self.__celsius * 9/5) + 32
+    
+    # Setter for fahrenheit
+    @fahrenheit.setter
+    def fahrenheit(self, value):
+        self.__celsius = (value - 32) * 5/9
+
+# Test getter and setter
+print("\n--- Getter and Setter ---")
+temp = Temperature(25)
+print(f"Celsius: {temp.celsius}")
+print(f"Fahrenheit: {temp.fahrenheit}")
+
+temp.celsius = 30
+print(f"After setting Celsius=30:")
+print(f"Celsius: {temp.celsius}")
+print(f"Fahrenheit: {temp.fahrenheit}")
+
+temp.fahrenheit = 68
+print(f"After setting Fahrenheit=68:")
+print(f"Celsius: {temp.celsius}")
+print(f"Fahrenheit: {temp.fahrenheit}")
+
+# Test validation
+temp.celsius = -300  # Should be capped at absolute zero
+print(f"After setting invalid temperature:")
+print(f"Celsius: {temp.celsius}")
+print(f"Fahrenheit: {temp.fahrenheit}") 

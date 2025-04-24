@@ -43,8 +43,6 @@ int ASTParser::parse() {
               func->add_func_info(func->name);
               auto& func_info = func->lookup_func_info(func->name);
               func_info.ast_index = ctx.get_ast().size();
-              std::cout << func->name << " added to symbols:" << ctx.get_ast().size()
-                        << std::endl;
             }
             ctx.add_ast_node(std::move(stmt));
         } else {

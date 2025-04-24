@@ -1,0 +1,73 @@
+# Test: Functions
+
+# Simple function
+def greet():
+    print("Hello, world!")
+
+# Function call
+print("Calling greet function:")
+greet()
+
+# Function with parameters
+def add(a, b):
+    return a + b
+
+result = add(5, 3)
+print("5 + 3 =", result)
+
+# Function with default parameters (if supported)
+def multiply(a, b=2):
+    return a * b
+
+print("3 * 2 =", multiply(3))
+print("4 * 5 =", multiply(4, 5))
+
+# Function with multiple return values (if supported)
+def min_max(numbers):
+    min_val = numbers[0]
+    max_val = numbers[0]
+    for num in range(1, len(numbers)):
+        if numbers[num] < min_val:
+            min_val = numbers[num]
+        if numbers[num] > max_val:
+            max_val = numbers[num]
+    return min_val, max_val
+
+# Recursive function
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+print("Factorial of 5 =", factorial(5))
+
+# Function with local variables
+def calculate():
+    local_var = 10
+    result = local_var * 2
+    return result
+
+print("Calculate result:", calculate())
+
+# Higher-order function (if supported)
+def apply_twice(func, value):
+    return func(func(value))
+
+def add_five(x):
+    return x + 5
+
+print("Apply add_five twice to 3:", apply_twice(add_five, 3))
+
+# Closure (if supported)
+def counter():
+    count = 0
+    def increment():
+        nonlocal count
+        count += 1
+        return count
+    return increment
+
+counter_func = counter()
+print("Counter:", counter_func())
+print("Counter:", counter_func())
+print("Counter:", counter_func()) 

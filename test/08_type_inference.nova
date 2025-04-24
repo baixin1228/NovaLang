@@ -1,0 +1,79 @@
+# Test: Type inference
+
+# Type inference for integers
+a = 10
+print("a is an integer:", a)
+a = a + 5
+print("a is still an integer:", a)
+
+# Type inference for floats
+b = 3.14
+print("b is a float:", b)
+b = b * 2
+print("b is still a float:", b)
+
+# Type conversion from int to float
+c = 5
+c = c + 2.5
+print("c should now be a float:", c)
+
+# Type inference for booleans
+d = True
+print("d is a boolean:", d)
+d = not d
+print("d is still a boolean:", d)
+
+# Type inference for strings
+e = "Hello"
+print("e is a string:", e)
+e = e + " World"
+print("e is still a string:", e)
+
+# Type inference in expressions
+f = 10
+g = 3
+h = f / g  # Should be inferred as float
+print("h should be a float:", h)
+
+# Type inference in function returns
+def get_value():
+    return 42
+
+i = get_value()
+print("i is inferred from function return:", i)
+
+def calculate(x, y):
+    return x * y
+
+j = calculate(2, 3)
+print("j is inferred from function with int params:", j)
+k = calculate(2.5, 3)
+print("k is inferred from function with mixed params:", k)
+
+# Type inference in conditionals
+l = 10
+if l > 5:
+    m = "Greater"
+else:
+    m = "Less"
+print("m is inferred in conditional:", m)
+
+# Type inference with collections
+numbers = [1, 2, 3]
+print("numbers is a list of integers:", numbers)
+
+mixed = [1, "two", 3.0]
+print("mixed is a list of mixed types:", mixed)
+
+# Type inference with structs
+person = { name = "Alice", age = 30 }
+print("person is a struct:", person.name, person.age)
+
+# Reassignment with different types (may not be allowed in Nova)
+try:
+    n = 5
+    print("n is initially an integer:", n)
+    n = "five"  # This might cause an error in Nova
+    print("n is now a string:", n)
+except:
+    print("Type reassignment not allowed in Nova") 
