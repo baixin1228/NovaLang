@@ -55,5 +55,5 @@ approx_pi = leibniz_pi(n_terms)
 print(approx_pi)
 
 s = "Hello " + "Word"
-struct1 = { a = 1, b = 2.0}
-print(s, approx_pi, struct1.b)
+struct1 = { a = 1, b = 2.11}
+print(s, approx_pi, struct1.a, struct1.b)

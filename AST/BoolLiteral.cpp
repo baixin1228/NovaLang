@@ -12,3 +12,9 @@ int BoolLiteral::visit_expr(VarType &result) {
   result = VarType::BOOL;
   return 0;
 }
+
+int BoolLiteral::gencode_stmt() { return 0; }
+
+llvm::Value *BoolLiteral::gencode_expr(VarType expected_type) {
+  return ctx.builder->getInt1(value);
+}

@@ -1,6 +1,5 @@
 #include "IntLiteral.h"
-#include "TypeChecker.h"
-#include "ASTParser.h"
+#include "Context.h"
 
 int IntLiteral::visit_stmt(VarType &result) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "整数字面量不能作为语句使用", line, __FILE__, __LINE__);
@@ -11,3 +10,16 @@ int IntLiteral::visit_expr(VarType &result) {
     result = VarType::INT;
     return 0;
 } 
+
+int IntLiteral::gencode_stmt() {
+    return 0;
+}
+
+llvm::Value *IntLiteral::gencode_expr(VarType expected_type) {
+  if (expected_type != VarType::NONE && expected_type == VarType::FLOAT) {
+    // 隐式类型转换
+    return ctx.builder->CreateSIToFP(ctx.builder->getInt64(value),
+                                ctx.builder->getDoubleTy());
+  }
+  return ctx.builder->getInt64(value);
+}

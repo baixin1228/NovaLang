@@ -39,8 +39,10 @@ int ASTParser::parse() {
         }
         auto stmt = parse_stmt();
         if (stmt) {
-            if (const auto* func = dynamic_cast<const Function*>(&*stmt)) {
-              ctx.set_funcline(func->name, ctx.get_ast().size());
+            if (auto* func = dynamic_cast<Function*>(&*stmt)) {
+              func->add_func_info(func->name);
+              auto& func_info = func->lookup_func_info(func->name);
+              func_info.ast_index = ctx.get_ast().size();
               std::cout << func->name << " added to symbols:" << ctx.get_ast().size()
                         << std::endl;
             }

@@ -14,4 +14,10 @@ int Global::visit_stmt(VarType &result) {
 int Global::visit_expr(VarType &result) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "global语句不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;
-} 
+}
+
+int Global::gencode_stmt() { return 0; }
+
+llvm::Value *Global::gencode_expr(VarType expected_type) {
+    return nullptr;
+}

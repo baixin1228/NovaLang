@@ -4,6 +4,145 @@
 #include "CodeGen.h"
 #include "Common.h"
 #include "Context.h"
+#include "If.h"
+#include "For.h"
+#include "While.h"
+
+CodeGen::CodeGen(Context& ctx, bool debug) 
+    : ctx(ctx),
+      dbg_builder(nullptr),
+      dbg_file(nullptr),
+      dbg_compile_unit(nullptr),
+      generate_debug_info(debug) {
+    
+    ctx.llvm_context = std::make_unique<llvm::LLVMContext>();
+    ctx.module = std::make_unique<llvm::Module>("novalang", *ctx.llvm_context);
+    ctx.builder = std::make_unique<llvm::IRBuilder<>>(*ctx.llvm_context);
+    // 初始化运行时管理器
+    ctx.runtime_manager =
+    std::make_unique<RuntimeManager>(*ctx.llvm_context, ctx.module.get(), *ctx.builder);
+  if (!ctx.runtime_manager->initialize()) {
+    throw std::runtime_error("Failed to initialize runtime manager");
+    }
+    
+    // 只有在需要生成调试信息时才初始化调试信息
+    if (generate_debug_info) {
+        dbg_builder = std::make_unique<llvm::DIBuilder>(*ctx.module);
+        source_filename = ctx.get_source_filename();
+        dbg_file = dbg_builder->createFile(source_filename, ".");
+        dbg_compile_unit = dbg_builder->createCompileUnit(
+            llvm::dwarf::DW_LANG_C, 
+            dbg_file, 
+            "NovaLang Compiler", 
+            false, 
+            "", 
+            0
+        );
+    }
+
+    // 初始化 printf 函数
+    auto printf_ty = llvm::FunctionType::get(
+        ctx.builder->getInt32Ty(),
+        {ctx.builder->getInt8PtrTy()},
+        true
+    );
+    ctx.printf_func = llvm::Function::Create(
+        printf_ty,
+        llvm::Function::ExternalLinkage,
+        "printf",
+        *ctx.module
+    );
+}
+
+int CodeGen::generate() {
+    auto &stmts = ctx.get_ast();
+    // 然后生成所有函数的定义
+    for (auto &stmt : stmts) {
+      if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+        if (generate_global_variable(*assign) == -1) {
+          return -1;
+        }
+      }
+      if (auto *iff = dynamic_cast<If *>(stmt.get())) {
+        for (auto &stmt : iff->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            if (generate_global_variable(*assign) == -1) {
+              return -1;
+            }
+          }
+        }
+      }
+      if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
+        for (auto &stmt : ffor->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            if (generate_global_variable(*assign) == -1) {
+              return -1;
+            }
+          }
+        }
+      }
+      if (auto *whl = dynamic_cast<While *>(stmt.get())) {
+        for (auto &stmt : whl->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            if (generate_global_variable(*assign) == -1) {
+              return -1;
+            }
+          }
+        }
+      }
+      if (auto *func = dynamic_cast<Function *>(stmt.get())) {
+        if (generate_function(*func) == -1) {
+          return -1;
+        }
+      }
+    }
+
+    // 生成 main 函数
+    auto func_ty = llvm::FunctionType::get(ctx.builder->getInt32Ty(), {}, false);
+    auto main_func = llvm::Function::Create(func_ty, llvm::Function::ExternalLinkage, "main", *ctx.module);
+    auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", main_func);
+    // 从现在开始所有生成的指令都要放入这个基本块中
+    ctx.builder->SetInsertPoint(block);
+    ctx.current_function = main_func;
+
+    // 只有在需要生成调试信息时才创建调试信息
+    if (generate_debug_info) {
+        auto dbg_func = dbg_builder->createFunction(
+            dbg_file,
+            "main",
+            "main",
+            dbg_file,
+            0,
+            dbg_builder->createSubroutineType(dbg_builder->getOrCreateTypeArray({})),
+            0,
+            llvm::DINode::FlagPrototyped,
+            llvm::DISubprogram::SPFlagDefinition
+        );
+        main_func->setSubprogram(dbg_func);
+    }
+
+    for (auto& stmt : stmts) {
+        if (!dynamic_cast<Function*>(stmt.get())) {
+          if (stmt->gencode_stmt() == -1) {
+            return -1;
+          }
+        }
+    }
+
+    ctx.builder->CreateRet(ctx.builder->getInt32(0));
+    return 0;
+}
+
+void CodeGen::print_ir() {
+    std::cout << "[IR]\n";
+    ctx.module->print(llvm::outs(), nullptr);
+}
+
+CodeGen::~CodeGen() {
+    if (generate_debug_info && dbg_builder) {
+        dbg_builder->finalize();
+    }
+} 
 
 void CodeGen::save_to_file(std::string& filename) {
     std::error_code EC;
@@ -12,7 +151,7 @@ void CodeGen::save_to_file(std::string& filename) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法打开文件: " + filename, 0, __FILE__, __LINE__);
         return;
     }
-    module->print(OS, nullptr);
+    ctx.module->print(OS, nullptr);
 }
 
 void CodeGen::compile_to_executable(std::string& output_filename, bool generate_object, bool generate_assembly) {
@@ -26,14 +165,14 @@ void CodeGen::compile_to_executable(std::string& output_filename, bool generate_
     // 验证模块
     std::string error;
     llvm::raw_string_ostream error_stream(error);
-    if (llvm::verifyModule(*module, &error_stream)) {
+    if (llvm::verifyModule(*ctx.module, &error_stream)) {
         ctx.add_error_front(ErrorHandler::ErrorLevel::Other, "模块验证失败: " + error, -1, __FILE__, __LINE__);
         return;
     }
 
     // 设置目标机器
     auto target_triple = llvm::sys::getDefaultTargetTriple();
-    module->setTargetTriple(target_triple);
+    ctx.module->setTargetTriple(target_triple);
 
     std::string target_error;
     auto target = llvm::TargetRegistry::lookupTarget(target_triple, target_error);
@@ -48,7 +187,7 @@ void CodeGen::compile_to_executable(std::string& output_filename, bool generate_
     auto RM = llvm::Optional<llvm::Reloc::Model>();
     auto target_machine = target->createTargetMachine(target_triple, CPU, Features, opt, RM);
 
-    module->setDataLayout(target_machine->createDataLayout());
+    ctx.module->setDataLayout(target_machine->createDataLayout());
 
     // 如果不是生成汇编或目标文件，我们需要一个临时目标文件
     std::string obj_file = generate_object ? output_filename : 
@@ -79,7 +218,7 @@ void CodeGen::compile_to_executable(std::string& output_filename, bool generate_
     }
 
     // 运行Pass
-    pass.run(*module);
+    pass.run(*ctx.module);
     dest.flush();
 
     // 如果不是生成汇编或目标文件，需要调用链接器生成可执行文件
@@ -111,7 +250,7 @@ void CodeGen::execute() {
     // 验证模块
     std::string error;
     llvm::raw_string_ostream error_stream(error);
-    if (llvm::verifyModule(*module, &error_stream)) {
+    if (llvm::verifyModule(*ctx.module, &error_stream)) {
       ctx.add_error_front(ErrorHandler::ErrorLevel::Other,
                           "模块验证失败: " + error, -1, __FILE__, __LINE__);
       return;
@@ -143,8 +282,8 @@ void CodeGen::execute() {
     }
 
     // 添加运行时库中的所有函数
-    for (const auto& name : runtime_manager->getRuntimeFunctionNames()) {
-        void* func_ptr = dlsym(runtime_manager->getRuntimeLibHandle(), name.c_str());
+    for (const auto& name : ctx.runtime_manager->getRuntimeFunctionNames()) {
+        void* func_ptr = dlsym(ctx.runtime_manager->getRuntimeLibHandle(), name.c_str());
         if (func_ptr) {
             symbols[(*jit)->mangleAndIntern(name)] = llvm::JITEvaluatedSymbol(
                 llvm::pointerToJITTargetAddress(func_ptr), llvm::JITSymbolFlags::Exported);
@@ -168,7 +307,7 @@ void CodeGen::execute() {
     }
 
     if (auto err = (*jit)->addIRModule(
-            llvm::orc::ThreadSafeModule(std::move(module), std::make_unique<llvm::LLVMContext>()))) {
+            llvm::orc::ThreadSafeModule(std::move(ctx.module), std::make_unique<llvm::LLVMContext>()))) {
         std::string err_msg;
         llvm::raw_string_ostream err_stream(err_msg);
         err_stream << err;

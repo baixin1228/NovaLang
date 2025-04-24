@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <utility>
-
+#include "CodeGen.h"
 class DictLiteral : public ASTNode {
 public:
     // 字典项：键和值
@@ -33,4 +33,6 @@ public:
 
     int visit_stmt(VarType &result) override;
     int visit_expr(VarType &result) override;
+    int gencode_stmt() override;
+    llvm::Value *gencode_expr(VarType expected_type) override;
 }; 

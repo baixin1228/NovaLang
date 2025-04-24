@@ -118,10 +118,6 @@ set(AST_SOURCES
 set(CODEGEN_SOURCES
     CodeGen/CodeGen.cpp
     CodeGen/CodeGenCore.cpp
-    CodeGen/CodeGenExpr.cpp
-    CodeGen/CodeGenStmt.cpp
-    CodeGen/CodeGenFunction.cpp
-    CodeGen/CodeGenVar.cpp
     CodeGen/RuntimeManager.cpp
 )
 

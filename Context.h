@@ -4,50 +4,51 @@
 #include "Error.h"
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 #include <llvm/IR/Value.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
+#include "RuntimeManager.h"
 
 class Context {
 private:
-  std::map<std::string, std::pair<int, VarType>> var_types;
-  std::map<std::string, std::pair<std::vector<VarType>, VarType>>
-      func_types;
   ErrorHandler errors;
-  std::map<std::string, uint64_t> funcline;
-  std::map<std::string, llvm::Value*> global_symbols;
-  std::vector<std::shared_ptr<ASTNode>> ast;
   std::string source_filename;
-  //全局结构体定义
+
+  std::map<std::string, VarInfo> var_infos;
+  std::map<std::string, FuncInfo> func_infos;
+
+  std::vector<std::shared_ptr<ASTNode>> ast;
+  std::map<std::string, llvm::Value *> global_llvm_objs;
   std::map<std::string, std::shared_ptr<ASTNode>> global_structs;
+  // global struct definition
 public:
   Context() = default;
   ~Context() = default;
 
-  int add_var_type(const std::string &name, int line, VarType type);
-  VarType get_var_type(const std::string &name, int line);
+  llvm::Function *printf_func;
+  llvm::Function *current_function;
+  std::unique_ptr<llvm::IRBuilder<>> builder;
+  std::unique_ptr<llvm::LLVMContext> llvm_context;
+  std::unique_ptr<llvm::Module> module;
+  // Runtime manager
+  std::shared_ptr<RuntimeManager> runtime_manager;
 
-  // 函数类型操作
-  void set_func_type(const std::string &name,
-                     const std::vector<VarType> &param_types,
-                     VarType return_type);
-  void set_func_return_type(const std::string &name,
-                            VarType return_type);
-  std::pair<std::vector<VarType>, VarType> &
-  get_func_type(const std::string &name);
+  int add_var_info(const std::string &name, int line);
+  VarInfo& lookup_var_info(const std::string &name, int line);
+
+  // function type operation
+  int add_func_info(const std::string &name);
+  FuncInfo &get_func_info(const std::string &name);
   bool has_func(const std::string &name) const;
 
-  // 符号表操作
-  void set_funcline(const std::string &name, uint64_t value);
-  std::optional<uint64_t> get_funcline(const std::string &name) const;
-
-  // AST操作
+  // AST operation
   void add_ast_node(std::shared_ptr<ASTNode> node);
   std::vector<std::shared_ptr<ASTNode>> &get_ast();
   const std::shared_ptr<ASTNode> &get_func(const std::string &name) const;
 
-  // 错误处理
+  // error handling
   void add_error(ErrorHandler::ErrorLevel level, const std::string &msg,
                  int line, const char* file, int call_line);
   void add_error_front(ErrorHandler::ErrorLevel level, const std::string &msg,
@@ -58,14 +59,10 @@ public:
   void set_source_filename(const std::string& filename);
   const std::string& get_source_filename() const;
 
-  // 生成唯一的局部变量名
+  // generate unique local variable name
   std::string generate_local_var_name(const std::string& original_name, const ASTNode* node) const;
   
-  //全局结构体
+  // global struct
   void add_global_struct(const std::string& name, std::shared_ptr<ASTNode> node);
   std::shared_ptr<ASTNode> lookup_global_struct(const std::string& name) const;
-  // 全局符号表操作
-  void add_llvm_symbol(const std::string& name, llvm::Value* value);
-  llvm::Value* lookup_llvm_symbol(const std::string& name) const;
-  // int erase_llvm_symbol(const std::string& name);
 };

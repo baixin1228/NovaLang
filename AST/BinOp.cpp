@@ -75,3 +75,145 @@ int BinOp::visit_expr(VarType &result) {
   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未知运算符: " + op, line, __FILE__, __LINE__);
   return -1;
 }
+
+int BinOp::gencode_stmt() { return 0; }
+
+llvm::Value *BinOp::gencode_expr(VarType expected_type) {
+  VarType left_type;
+  VarType right_type;
+  VarType left_ori_type;
+  VarType left_expected_type = VarType::NONE;
+  VarType right_expected_type = VarType::NONE;
+
+  left->visit_expr(left_type);
+  right->visit_expr(right_type);
+  left_ori_type = left_type;
+
+  // 检查是否是字符串连接操作
+  bool is_string_concat = op == "+" && (left_type == VarType::STRING ||
+                                               right_type == VarType::STRING);
+
+  // 如果不是字符串连接，按原逻辑处理类型转换
+  if (!is_string_concat) {
+    if (expected_type != VarType::NONE) {
+      left_expected_type = expected_type;
+      right_expected_type = expected_type;
+      left_ori_type = expected_type;
+    }
+    if (left_type != right_type) {
+      if (left_type == VarType::FLOAT) {
+        right_expected_type = VarType::FLOAT;
+      }
+      if (right_type == VarType::FLOAT) {
+        left_expected_type = VarType::FLOAT;
+      }
+      left_ori_type = VarType::FLOAT;
+    }
+    if (op == "/") {
+      left_expected_type = VarType::FLOAT;
+      right_expected_type = VarType::FLOAT;
+      left_ori_type = VarType::FLOAT;
+    }
+  } else {
+    // 对于字符串连接，设置返回类型为STRING
+    left_ori_type = VarType::STRING;
+  }
+
+  auto left_value = left->gencode_expr(left_expected_type);
+  auto right_value = right->gencode_expr(right_expected_type);
+
+  if (left_value == nullptr || right_value == nullptr) {
+    throw std::runtime_error("未知表达式 code:" + std::to_string(line) +
+                             " line:" + std::to_string(__LINE__));
+    return nullptr;
+  }
+
+  if (op == "+") {
+    // 处理字符串连接
+    if (is_string_concat) {
+      // 如果左操作数不是字符串，需要将其转换为字符串
+      if (left_type != VarType::STRING) {
+        // 创建一个临时字符串值
+        // 这里需要根据实际情况实现将不同类型转换为字符串的逻辑
+        // 目前简单处理：只支持字符串+字符串
+        throw std::runtime_error("不支持的操作: 非字符串 + 字符串 code:" +
+                                  std::to_string(line) +
+                                 " line:" + std::to_string(__LINE__));
+      }
+
+      // 如果右操作数不是字符串，需要将其转换为字符串
+      if (right_type != VarType::STRING) {
+        // 同上，需要实现类型转换
+        throw std::runtime_error("不支持的操作: 字符串 + 非字符串 code:" +
+                                 std::to_string(line) +
+                                 " line:" + std::to_string(__LINE__));
+      }
+
+      // 两者都是字符串，调用运行时库进行连接
+      auto concat_func = ctx.runtime_manager->getRuntimeFunction("concat_strings");
+      if (!concat_func) {
+        throw std::runtime_error(
+            "无法获取字符串连接函数 code:" + std::to_string(line) +
+            " line:" + std::to_string(__LINE__));
+      }
+
+      // 调用concat_strings函数连接字符串
+      return ctx.builder->CreateCall(concat_func, {left_value, right_value}, "str_concat");
+    }
+
+    // 非字符串加法处理
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateAdd(left_value, right_value, "add")
+               : ctx.builder->CreateFAdd(left_value, right_value, "fadd");
+  }
+  if (op == "-") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateSub(left_value, right_value, "sub")
+               : ctx.builder->CreateFSub(left_value, right_value, "fsub");
+  }
+  if (op == "*") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateMul(left_value, right_value, "mul")
+               : ctx.builder->CreateFMul(left_value, right_value, "fmul");
+  }
+  if (op == "/") {
+    return ctx.builder->CreateFDiv(left_value, right_value, "fdiv");
+  }
+  if (op == "//") {
+    return ctx.builder->CreateSDiv(left_value, right_value, "sdiv");
+  }
+  if (op == "==") {
+    if (left_ori_type == VarType::INT) {
+      return ctx.builder->CreateICmpEQ(left_value, right_value, "eq");
+    } else if (left_ori_type == VarType::FLOAT) {
+      return ctx.builder->CreateFCmpOEQ(left_value, right_value, "feq");
+    } else {
+      return ctx.builder->CreateICmpEQ(left_value, right_value, "eq");
+    }
+  }
+  if (op == "<") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateICmpSLT(left_value, right_value, "cmp")
+               : ctx.builder->CreateFCmpOLT(left_value, right_value, "fcmp");
+  }
+  if (op == ">") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateICmpSGT(left_value, right_value, "cmp")
+               : ctx.builder->CreateFCmpOGT(left_value, right_value, "fcmp");
+  }
+  if (op == ">=") {
+    return left_ori_type == VarType::INT
+               ? ctx.builder->CreateICmpSGE(left_value, right_value, "cmp")
+               : ctx.builder->CreateFCmpOGE(left_value, right_value, "fcmp");
+  }
+  if (op == "and") {
+    return ctx.builder->CreateAnd(left_value, right_value, "and");
+  }
+  if (op == "or") {
+    return ctx.builder->CreateOr(left_value, right_value, "or");
+  }
+  throw std::runtime_error("未知运算符: " + op +
+                           " code:" + std::to_string(line) +
+                           " line:" + std::to_string(__LINE__));
+  return nullptr;
+}

@@ -18,4 +18,6 @@ public:
     void print(int indent) override;
     int visit_stmt(VarType &result) override;
     int visit_expr(VarType &result) override;
+    int gencode_stmt() override;
+    llvm::Value *gencode_expr(VarType expected_type) override;
 }; 

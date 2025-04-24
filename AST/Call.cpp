@@ -11,10 +11,10 @@ int Call::visit_expr(VarType &result) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line, __FILE__, __LINE__);
     return -1;
   }
-  auto &[param_types, return_type] = ctx.get_func_type(name);
-  if (args.size() != param_types.size()) {
+  auto &func_info = ctx.get_func_info(name);
+  if (args.size() != func_info.param_types.size()) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "参数数量不匹配: 期望 " + std::to_string(param_types.size()) +
+                  "参数数量不匹配: 期望 " + std::to_string(func_info.param_types.size()) +
                       ", 得到 " + std::to_string(args.size()),
                   line, __FILE__, __LINE__);
     return -1;
@@ -27,15 +27,15 @@ int Call::visit_expr(VarType &result) {
     if (ret == -1) {
       return -1;
     }
-    if (param_types[i] != VarType::NONE && param_types[i] != arg_type) {
+    if (func_info.param_types[i] != VarType::NONE && func_info.param_types[i] != arg_type) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "参数类型不匹配: 期望 " +
-                        var_type_to_string(param_types[i]) + ", 得到 " +
+                        var_type_to_string(func_info.param_types[i]) + ", 得到 " +
                         var_type_to_string(arg_type),
                     line, __FILE__, __LINE__);
       return -1;
     }
-    param_types[i] = arg_type;
+    func_info.param_types[i] = arg_type;
   }
 
   const std::shared_ptr<ASTNode> &node = ctx.get_func(name);
@@ -47,8 +47,20 @@ int Call::visit_expr(VarType &result) {
     func->reference_count++;
     func->visit_stmt(result); // 正式推断类型，生成代码
   }
-  std::tie(param_types, return_type) = ctx.get_func_type(name);
-
-  result = return_type;
+  result = func_info.return_type;
   return 0;
+}
+
+int Call::gencode_stmt() {
+  gencode_expr(VarType::NONE);
+  return 0;
+}
+
+llvm::Value *Call::gencode_expr(VarType expected_type) {
+  auto func = lookup_func_info(name);
+  std::vector<llvm::Value *> llvm_args;
+  for (auto &arg : args) {
+    llvm_args.push_back(arg->gencode_expr(VarType::NONE));
+  }
+  return ctx.builder->CreateCall(func.llvm_obj, llvm_args, "call");
 }

@@ -10,4 +10,10 @@ int FloatLiteral::visit_stmt(VarType &result) {
 int FloatLiteral::visit_expr(VarType &result) {
     result = VarType::FLOAT;
     return 0;
-} 
+}
+
+int FloatLiteral::gencode_stmt() { return 0; }
+
+llvm::Value *FloatLiteral::gencode_expr(VarType expected_type) {
+    return llvm::ConstantFP::get(ctx.builder->getDoubleTy(), value);
+}

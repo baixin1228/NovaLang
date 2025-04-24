@@ -1,5 +1,6 @@
 #pragma once
 #include "ASTNode.h"
+#include <iostream>
 
 class While : public ASTNode {
 public:
@@ -35,4 +36,6 @@ public:
 
     int visit_stmt(VarType &result) override;
     int visit_expr(VarType &result) override;
+    int gencode_stmt() override;
+    llvm::Value *gencode_expr(VarType expected_type) override;
 }; 

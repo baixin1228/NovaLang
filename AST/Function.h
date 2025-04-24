@@ -1,5 +1,6 @@
 #pragma once
 #include "ASTNode.h"
+#include <iostream>
 
 class Function : public ASTNode {
 public:
@@ -26,7 +27,7 @@ public:
     void print(int level) override {
       std::cout << std::string(level * 2, ' ') << "Function: " << name
                 << " (var:";
-      for (const auto &var : var_types) {
+      for (const auto &var : var_infos) {
         std::cout << var.first << " ";
       }
       std::cout << ") [行 " << line << "]\n";
@@ -43,4 +44,6 @@ public:
 
     int visit_stmt(VarType &result) override;
     int visit_expr(VarType &result) override;
+    int gencode_stmt() override;
+    llvm::Value *gencode_expr(VarType expected_type) override;
 }; 

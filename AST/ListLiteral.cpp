@@ -38,4 +38,14 @@ int ListLiteral::visit_expr(VarType &result) {
     
     result = VarType::LIST;
     return 0;
-} 
+}
+
+int ListLiteral::gencode_stmt() { return 0; }
+
+llvm::Value *ListLiteral::gencode_expr(VarType expected_type) {
+  // 列表实现将在后续完成，目前简单返回null指针
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "列表字面量暂不支持代码生成",
+                line, __FILE__, __LINE__);
+  return llvm::ConstantPointerNull::get(
+      llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+}

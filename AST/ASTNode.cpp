@@ -1,81 +1,90 @@
 #include "ASTNode.h"
 #include "Context.h"
-#include "Return.h"
-#include <iostream>
 
 ASTNode::ASTNode(Context &ctx, int ln, bool is_scope)
     : line(ln), parent(nullptr), ctx(ctx), is_scope(is_scope) {}
 
 void ASTNode::set_parent(ASTNode *p) { parent = p; }
 
-/* 添加变量到最近的作用域，或者全局作用域 */
-int ASTNode::add_var_type(const std::string &name, VarType type, bool force) {
-  // 如果是全局变量，直接在全局作用域中设置
+/* add variable to current scope or global scope */
+int ASTNode::add_var_info(const std::string &name, bool is_params) {
+  // if it is global variable, set it in global scope
   if (is_global_var(name)) {
-    if (force) {
+    if (is_params) {
       throw std::runtime_error("global already exists: " + name +
                                " source_line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
     }
-    return ctx.add_var_type(name, line, type);
+    return ctx.add_var_info(name, line);
   }
 
-  // 如果是作用域节点，在当前节点存储变量
   if (is_scope) {
-    // 检查变量是否已存在
-    if (var_types.find(name) != var_types.end()) {
-#ifdef DEBUG
-      std::cout << "variable already exists: " << name << " line: " << line
-                << " type: " << var_type_to_string(var_types[name])
-                << std::endl;
-#endif
+    if (var_infos.find(name) != var_infos.end()) {
       return -1;
     }
-    var_types[name] = type;
-#ifdef DEBUG
-    std::cout << "add variable: " << name << " line: " << line << " type: " << var_type_to_string(type) << std::endl;
-#endif
+    var_infos[name] = {.line = line};
     return 0;
   }
 
-  // 如果有父节点，将变量添加到最近的作用域
   if (parent) {
-    return parent->add_var_type(name, type, force);
+    return parent->add_var_info(name, is_params);
   }
 
-  // 如果没有找到作用域父节点，添加到全局作用域
-  return ctx.add_var_type(name, line, type);
+  return ctx.add_var_info(name, line);
 }
 
-VarType ASTNode::lookup_var_type(const std::string &name) {
+VarInfo& ASTNode::lookup_var_info(const std::string &name) {
   if (name.empty()) {
-    return VarType::NONE;
+    throw std::runtime_error("variable name is empty: " + name +
+                             " line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
   }
 
-  // 1. 在当前作用域查找
   if (is_scope) {
-    auto type = var_types.find(name);
-    if (type != var_types.end()) {
-// #ifdef DEBUG
-//       std::cout << "lookup local type: " << name << " line: " << line
-//                 << " type: " << var_type_to_string(type->second) << " found"
-//                 << std::endl;
-// #endif
-      return type->second;
+    auto info = var_infos.find(name);
+    if (info != var_infos.end()) {
+      return info->second;
     }
   }
-
-  // 2. 在父作用域查找
   if (parent) {
-    return parent->lookup_var_type(name);
+    return parent->lookup_var_info(name);
   }
-
-  // 3. 在全局作用域查找
-  return ctx.get_var_type(name, line);
+  return ctx.lookup_var_info(name, line);
 }
 
-/* global关键字添加的全局变量标志 */
+int ASTNode::_add_func_info(const std::string &name) {
+  if (is_scope) {
+    func_infos[name] = {};
+    return 0;
+  }
+  if (parent) {
+    return parent->_add_func_info(name);
+  }
+
+  return ctx.add_func_info(name);
+}
+
+int ASTNode::add_func_info(const std::string &name) {
+  if (parent) {
+    return parent->_add_func_info(name);
+  }
+
+  return ctx.add_func_info(name);
+}
+
+FuncInfo& ASTNode::lookup_func_info(const std::string &name) {
+  if (is_scope) {
+    auto info = func_infos.find(name);
+    if (info != func_infos.end()) {
+      return info->second;
+    }
+  }
+  if (parent) {
+    return parent->lookup_func_info(name);
+  }
+  return ctx.get_func_info(name);
+}
+
 void ASTNode::add_global_var(const std::string &name) {
-  // 添加到最近作用域
+  // add to current scope
   if (is_scope) {
     global_vars.insert(name);
     return;
@@ -84,14 +93,14 @@ void ASTNode::add_global_var(const std::string &name) {
   if (parent) {
     parent->add_global_var(name);
   } else {
-    // 根节点并且非作用域不允许添加global关键字
+    // root node and not scope, not allowed to add global keyword
     throw std::runtime_error("not found scope: " + name +
                              " line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
   }
 }
 
 bool ASTNode::is_global_var(const std::string &name) const {
-  // 只在当前作用域查找
+  // find in current scope
   if (is_scope) {
     return global_vars.find(name) != global_vars.end();
   }
@@ -124,57 +133,10 @@ std::string ASTNode::get_scope_path() const {
   return path;
 }
 
-void ASTNode::add_llvm_symbol(const std::string &name, llvm::Value *value) {
-  // 如果当前作用域存在该变量，则添加到符号表
-  if (is_scope) {
-    auto type = var_types.find(name);
-    if (type != var_types.end()) {
-    //   std::cout << "add llvm symbol: " << name << " line: " << line
-    //             << std::endl;
-      symbols[name] = value;
-      return;
-    }
-  }
-  if (parent) {
-    parent->add_llvm_symbol(name, value);
-  }
-  ctx.add_llvm_symbol(name, value);
+void ASTNode::add_var_llvm_obj(const std::string &name, llvm::Value *value) {
+  lookup_var_info(name).llvm_obj = value;
 }
 
-llvm::Value *ASTNode::lookup_llvm_symbol(const std::string &name) const {
-  // 1. 在当前作用域查找
-  if (is_scope) {
-    auto it = symbols.find(name);
-    if (it != symbols.end()) {
-      return it->second;
-    }
-  }
-
-  // 2. 在父作用域查找
-  if (parent) {
-    return parent->lookup_llvm_symbol(name);
-  }
-
-  // 3. 在全局作用域查找
-  return ctx.lookup_llvm_symbol(name);
+llvm::Value *ASTNode::lookup_var_llvm_obj(const std::string &name) {
+  return lookup_var_info(name).llvm_obj;
 }
-
-// int ASTNode::erase_llvm_symbol(const std::string &name) {
-//   if (is_scope) {
-//     auto it = symbols.find(name);
-//     if (it != symbols.end()) {
-//       symbols.erase(it);
-//       return 0;
-//     } else {
-// #ifdef DEBUG
-//       std::cout << "非法移除符号: " << name << " line: " << line << std::endl;
-// #endif
-//       return -1;
-//     }
-//   }
-//   if (parent) {
-//     return parent->erase_llvm_symbol(name);
-//   }
-//   ctx.erase_llvm_symbol(name);
-//   return -1;
-// }

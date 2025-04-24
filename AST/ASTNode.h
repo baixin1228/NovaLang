@@ -1,12 +1,9 @@
 #pragma once
-#include <iostream>
-#include <vector>
 #include <string>
-#include <memory>
 #include <map>
-#include <optional>
 #include <set>
 #include "Common.h"
+#include <llvm/IR/IRBuilder.h>
 
 namespace llvm {
     class Value;
@@ -17,39 +14,40 @@ class Context;
 class ASTNode {
   protected:
     ASTNode* parent;
-    std::map<std::string, VarType> var_types;
+    std::map<std::string, VarInfo> var_infos;
+    std::map<std::string, FuncInfo> func_infos;
     std::map<std::string, llvm::Value*> symbols;
     std::set<std::string> global_vars;
     Context &ctx;
     bool is_scope;
+
+    int _add_func_info(const std::string &name);
 
   public:
     int line;
     ASTNode(Context &ctx, int ln, bool is_scope = false);
     virtual ~ASTNode() = default;
     
-    // 打印方法
     virtual void print(int level = 0) = 0;
-    
-    // 访问方法
     virtual int visit_stmt(VarType &result) = 0;
     virtual int visit_expr(VarType &result) = 0;
-    void set_parent(ASTNode* p);
+    virtual int gencode_stmt() = 0;
+    virtual llvm::Value *gencode_expr(VarType expected_type) = 0;
+    void set_parent(ASTNode *p);
 
-    // 变量作用域相关方法
-    virtual int add_var_type(const std::string& name, VarType type, bool force = false);
-    VarType lookup_var_type(const std::string &name);
+    // scope related methods
+    virtual int add_var_info(const std::string& name, bool is_params = false);
+    VarInfo& lookup_var_info(const std::string &name);
+    int add_func_info(const std::string &name);
+    FuncInfo &lookup_func_info(const std::string &name);
+    void add_var_llvm_obj(const std::string &name, llvm::Value *value);
+    llvm::Value* lookup_var_llvm_obj(const std::string &name);
 
-    // 全局变量相关方法
+    // global variable related methods
     virtual void add_global_var(const std::string& name);
     virtual bool is_global_var(const std::string& name) const;
 
-    // 获取作用域深度（用于生成唯一的局部变量名）
+    // get scope depth (for generating unique local variable name)
     int get_scope_depth() const;
     std::string get_scope_path() const;
-
-    // 符号表操作
-    void add_llvm_symbol(const std::string& name, llvm::Value* value);
-    llvm::Value* lookup_llvm_symbol(const std::string& name) const;
-    // int erase_llvm_symbol(const std::string& name);
 };

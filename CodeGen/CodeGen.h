@@ -18,10 +18,8 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Utils.h>
-#include <map>
 #include <memory>
 #include <string>
-#include <vector>
 #include <llvm/IR/GlobalVariable.h>
 
 #ifdef __linux__
@@ -31,52 +29,14 @@
 #define PLATFORM_LINUX 0
 #endif
 
-#include "ASTNode.h"
-#include "Common.h"
-#include "Context.h"
-#include "Function.h"
-#include "Assign.h"
-#include "Print.h"
 #include "RuntimeManager.h"
-#include "StringLiteral.h"
-#include "AST/StructLiteral.h"
-#include "AST/StructFieldAccess.h"
-
-// 获取类型对齐值
-inline uint32_t get_type_align(VarType type) {
-  switch (type) {
-  case VarType::INT:
-  case VarType::FLOAT:
-    return 8;
-  case VarType::BOOL:
-    return 1;
-  case VarType::STRING:
-  case VarType::STRUCT:
-  case VarType::DICT:
-  case VarType::LIST:
-    return 8; // Pointer alignment
-  default:
-    std::cerr << "Unknown type: " << var_type_to_string(type) << std::endl;
-    return 0;
-  }
-}
-
-// 获取两个类型中较大的对齐值
-inline uint32_t get_max_align(VarType type1, VarType type2) {
-  return std::max(get_type_align(type1), get_type_align(type2));
-}
-
+#include "Context.h"
+#include "Assign.h"
+#include "Function.h"
 // 代码生成
 class CodeGen {
 private:
-  llvm::LLVMContext context;
-  std::unique_ptr<llvm::Module> module;
-  llvm::IRBuilder<> builder;
-  std::map<std::string, llvm::Function *> functions;
-  llvm::Function *printf_func; // Single printf declaration
-  llvm::Function *current_function;
   Context &ctx;
-  std::map<std::string, llvm::Value*> string_pool;  // 字符串池，用于复用相同的字符串
   
   // Debug info
   std::shared_ptr<llvm::DIBuilder> dbg_builder;
@@ -85,50 +45,22 @@ private:
   std::string source_filename; // 源文件名
   bool generate_debug_info;    // 新增：控制是否生成调试信息
 
-  // Runtime manager
-  std::shared_ptr<RuntimeManager> runtime_manager;
-
-  void generatePrintStatement(Print *prt);
-  
-  // 处理字符串字面量，返回指向unicode字符串的指针
-  llvm::Value* handleStringLiteral(StringLiteral* str_lit);
-  
-  // 处理结构体字面量，返回指向结构体的指针
-  llvm::Value* handleStructLiteral(StructLiteral* struct_lit);
-  
-  // 处理结构体字段访问，返回字段值
-  llvm::Value* handleStructFieldAccess(StructFieldAccess* field_access);
-  
-  // 创建常量数组，用于结构体字面量处理
-  llvm::Value* createConstantArray(const std::vector<llvm::Value*>& values, const std::string& name);
-
-public:
-  explicit CodeGen(Context &ctx, bool debug = false);
-  ~CodeGen();
-
-  int generate();
-
-  void print_ir();
-
-  int generate_function(Function &func);
   int generate_global_variable(Assign &assign);
+  int generate_function(Function &func);
+  void GenLocalVar(Assign &assign);
+public:
+    explicit CodeGen(Context & ctx, bool debug = false);
+    ~CodeGen();
 
-  int visit_stmt(ASTNode &node);
+    int generate();
 
-  llvm::Value *visit_expr(ASTNode &node, VarType expected_type = VarType::NONE);
+    void print_ir();
 
-  VarType visit_expr_type(ASTNode &node);
+    void execute();
 
-  void execute();
-
-  // 新增方法：文件调试支持
-  void save_to_file(std::string &filename); // 保存IR到文件
-  void compile_to_executable(
-      std::string &output_filename, bool generate_object = false,
-      bool generate_assembly = false); // 编译为可执行文件或目标文件
-
-  void GenLocalVar(Assign& assign);
-
-private:
-  // ... existing code ...
-};
+    // 新增方法：文件调试支持
+    void save_to_file(std::string & filename); // 保存IR到文件
+    void compile_to_executable(
+        std::string & output_filename, bool generate_object = false,
+        bool generate_assembly = false); // 编译为可执行文件或目标文件
+  };

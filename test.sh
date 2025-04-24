@@ -6,5 +6,8 @@ fi
 
 cd build
 cmake ..
-make
-./nova ../test.nova
+if [ "$1" == "gdb" ]; then
+    make -j$(nproc) && gdb --args ./nova ../test.nova
+else
+    make -j$(nproc) && ./nova ../test.nova
+fi

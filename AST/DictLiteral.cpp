@@ -68,4 +68,14 @@ int DictLiteral::visit_expr(VarType &result) {
     
     result = VarType::DICT;
     return 0;
-} 
+}
+
+int DictLiteral::gencode_stmt() { return 0; }
+
+llvm::Value *DictLiteral::gencode_expr(VarType expected_type) {
+  // 字典实现将在后续完成，目前简单返回null指针
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "字典字面量暂不支持代码生成",
+                line, __FILE__, __LINE__);
+  return llvm::ConstantPointerNull::get(
+      llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+}

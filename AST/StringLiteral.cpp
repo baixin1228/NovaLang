@@ -93,4 +93,60 @@ int StringLiteral::visit_stmt(VarType &result) {
 int StringLiteral::visit_expr(VarType &result) {
     result = VarType::STRING;
     return 0;
-} 
+}
+
+int StringLiteral::gencode_stmt() { return 0; }
+
+std::map<std::string, llvm::Value *> string_pool;
+llvm::Value *StringLiteral::gencode_expr(VarType expected_type) {
+  // 获取原始字符串作为key
+  const std::string &str_key = get_raw_str();
+
+  // 检查字符串池中是否已存在
+  auto it = string_pool.find(str_key);
+  if (it != string_pool.end()) {
+    return it->second; // 返回已存在的内存指针
+  }
+
+  // 获取Unicode字符串
+  const icu::UnicodeString &unicode_str = get_unicode();
+
+  // 创建包含Unicode数据的全局常量数组
+  llvm::Constant *chars_array = nullptr;
+  std::vector<llvm::Constant *> chars;
+  for (int i = 0; i < unicode_str.length(); i++) {
+    chars.push_back(
+        llvm::ConstantInt::get(ctx.builder->getInt16Ty(), unicode_str.charAt(i)));
+  }
+
+  // 创建UChar数组类型和常量数组
+  llvm::ArrayType *char_array_type =
+      llvm::ArrayType::get(ctx.builder->getInt16Ty(), chars.size());
+  chars_array = llvm::ConstantArray::get(char_array_type, chars);
+
+  // 将数组存储为全局变量以便使用
+  std::string array_name =
+      "unicode_chars_" + std::to_string(string_pool.size());
+  auto global_array = new llvm::GlobalVariable(
+      *ctx.module, char_array_type,
+      true, // 是常量
+      llvm::GlobalValue::PrivateLinkage, chars_array, array_name);
+
+  // 创建指向数组的指针
+  llvm::Value *array_ptr = ctx.builder->CreateBitCast(
+      global_array, llvm::PointerType::get(ctx.builder->getInt16Ty(), 0),
+      "unicode_data_ptr");
+
+  // 使用运行时库函数创建Unicode字符串
+  auto create_func =
+      ctx.runtime_manager->getRuntimeFunction("create_string_from_chars");
+  llvm::Value *length =
+      llvm::ConstantInt::get(ctx.builder->getInt32Ty(), unicode_str.length());
+  llvm::Value *memory_block =
+      ctx.builder->CreateCall(create_func, {array_ptr, length}, "create_string");
+
+  // 将指针存入字符串池
+  string_pool[str_key] = memory_block;
+
+  return memory_block;
+}
