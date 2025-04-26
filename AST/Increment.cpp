@@ -2,14 +2,15 @@
 #include "Common.h"
 #include "Context.h"
 #include <string>
+#include "Variable.h"
 
-int Increment::visit_stmt(VarType &result) {
-    auto& var_info = lookup_var_info(var);
-    if (var_info.type == VarType::NONE) {
+int Increment::visit_stmt() {
+    auto var_info = dynamic_cast<Variable*>(lookup_var(var, line).get());
+    if (var_info->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
-    if (var_info.type != VarType::INT) {
+    if (var_info->type != VarType::INT) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "无法对非整型变量递增: " + var, line, __FILE__, __LINE__);
         return -1;
@@ -17,26 +18,26 @@ int Increment::visit_stmt(VarType &result) {
     return 0;
 }
 
-int Increment::visit_expr(VarType &result) {
-    auto& var_info = lookup_var_info(var);
-    if (var_info.type == VarType::NONE) {
+int Increment::visit_expr(std::shared_ptr<ASTNode> &self) {
+    auto var_info = dynamic_cast<Variable*>(lookup_var(var, line).get());
+    if (var_info->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                                "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
-    if (var_info.type != VarType::INT) {
+    if (var_info->type != VarType::INT) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                                "自增运算符只能用于整数类型", line, __FILE__, __LINE__);
         return -1;
     }
-    result = VarType::INT;
+    type = var_info->type;
     return 0;
 } 
 
 int Increment::gencode_stmt() {
-  auto ptr = lookup_var_llvm_obj(var);
-  auto &var_info = lookup_var_info(var);
-  VarType type = var_info.type;
+  auto var_info = dynamic_cast<Variable*>(lookup_var(var, line).get());
+  auto ptr = var_info->llvm_obj;
+  VarType type = var_info->type;
   if (type == VarType::NONE) {
     throw std::runtime_error("未定义的变量: " + var +
                              " source:" + std::to_string(line) +

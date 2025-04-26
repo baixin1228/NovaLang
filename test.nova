@@ -34,8 +34,8 @@ for i in range(3):
     print(i)
 
 z = x == 8
-print(z)  # 输出 true (1)
-print(x)  # 输出
+print("z:", z)  # 输出 true (1)
+print("x:", x)  # 输出
 
 def leibniz_pi(n_terms):
     pi = 0.0
@@ -46,8 +46,12 @@ def leibniz_pi(n_terms):
         tmp = sign * term
         pi += tmp
         sign = sign * -1
+
+    print("teasdrm")
     ss = "mem free test"
     print(ss)
+    print("pi:", pi)
+    print("pi:", pi)
     return 4 * pi
 
 n_terms = 1000000000
@@ -55,5 +59,30 @@ approx_pi = leibniz_pi(n_terms)
 print(approx_pi)
 
 s = "Hello " + "Word"
+def func_loop(cc):
+    return {f = cc, h = leibniz_pi}
+
+#struct1 = { a = 1, b = 2.11, c = func_loop}
 struct1 = { a = 1, b = 2.11}
-print(s, approx_pi, struct1.a, struct1.b)
+struct2 = { a2 = struct1, b2 = 2.11}
+struct3 = { a3 = struct2, b3 = 2.11}
+struct1.b = 2.12
+#struct1.c(100)
+#print(struct1.c(100).h(100))
+struct2.a2.b = 2.13
+#struct3.a3.a2.a = struct1.c(100).f
+print(s, approx_pi, struct3.a3.a2.a, struct1.b)
+
+class aaa:
+    def aa(self):
+        c = 0
+        print(c)
+
+#class bbb:
+#    def bb(self):
+#        return aaa()
+
+#obj_a = aaa()
+#print(obj_a.c)
+#value = bbb().b().c
+#print(value)

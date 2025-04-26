@@ -1,25 +1,30 @@
 #include "For.h"
 #include "TypeChecker.h"
 #include "ASTParser.h"
-
-int For::visit_stmt(VarType &result) {
-    VarType end_type;
-    int ret = end->visit_expr(end_type);
+#include "Variable.h"
+int For::visit_stmt() {
+    std::shared_ptr<ASTNode> end_ast;
+    int ret = end->visit_expr(end_ast);
     if (ret == -1) {
         return -1;
     }
-    if (end_type != VarType::INT) {
+    if (end_ast->type != VarType::INT) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                         "for 循环范围必须是 int 类型，得到: " + var_type_to_string(end_type), line, __FILE__, __LINE__ );
+                         "for 循环范围必须是 int 类型，得到: " + var_type_to_string(end_ast->type), line, __FILE__, __LINE__ );
         return -1;
     }
-    add_var_info(iterator, true);
-    auto& var_info = lookup_var_info(iterator);
-    var_info.type = VarType::INT;
+    add_var(iterator->name, iterator, true);
+    iterator->type = VarType::INT;
+    std::shared_ptr<ASTNode> iterator_ast;
+    ret = iterator->visit_expr(iterator_ast);
+    if (ret == -1) {
+      return -1;
+    }
+    auto var_node = lookup_var(iterator->name, line);;
+    var_node->type = VarType::INT;
     for (auto& stmt : body) {
         if (stmt) {
-            VarType stmt_result;
-            int ret = stmt->visit_stmt(stmt_result);
+            int ret = stmt->visit_stmt();
             if (ret == -1) {
                 return -1;
             }
@@ -28,16 +33,17 @@ int For::visit_stmt(VarType &result) {
     return 0;
 }
 
-int For::visit_expr(VarType &result) {
+int For::visit_expr(std::shared_ptr<ASTNode> &self) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "for 循环不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;
 }
 
 int For::gencode_stmt() {
   auto iter_ptr =
-      ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, iterator);
+      ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, iterator->name);
   iter_ptr->setAlignment(llvm::Align(get_type_align(VarType::INT)));
-  add_var_llvm_obj(iterator, iter_ptr);
+  auto var_node = lookup_var(iterator->name, line);
+  var_node->llvm_obj = iter_ptr;
   auto str = ctx.builder->CreateStore(ctx.builder->getInt64(0), iter_ptr);
   str->setAlignment(llvm::Align(get_type_align(VarType::INT)));
 
@@ -48,7 +54,7 @@ int For::gencode_stmt() {
   ctx.builder->CreateBr(loop_bb);
   ctx.builder->SetInsertPoint(loop_bb);
   auto iter_val =
-      ctx.builder->CreateLoad(ctx.builder->getInt64Ty(), iter_ptr, iterator + "_val");
+      ctx.builder->CreateLoad(ctx.builder->getInt64Ty(), iter_ptr, iterator->name + "_val");
   iter_val->setAlignment(llvm::Align(get_type_align(VarType::INT)));
   auto end_val = end->gencode_expr(VarType::NONE);
   auto cond = ctx.builder->CreateICmpSLT(iter_val, end_val, "cmp");
@@ -61,7 +67,7 @@ int For::gencode_stmt() {
     }
   }
   auto iter_new =
-      ctx.builder->CreateAdd(iter_val, ctx.builder->getInt64(1), iterator + "_inc");
+      ctx.builder->CreateAdd(iter_val, ctx.builder->getInt64(1), iterator->name + "_inc");
   auto str2 = ctx.builder->CreateStore(iter_new, iter_ptr);
   str2->setAlignment(llvm::Align(get_type_align(VarType::INT)));
   ctx.builder->CreateBr(loop_bb);

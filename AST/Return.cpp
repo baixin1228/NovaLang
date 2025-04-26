@@ -1,16 +1,23 @@
 #include "Return.h"
 #include "TypeChecker.h"
 #include "ASTParser.h"
+#include "Variable.h"
 
-int Return::visit_stmt(VarType &result) {
-    return value->visit_expr(result);
+int Return::visit_stmt() {
+    std::shared_ptr<ASTNode> value_ast;
+    return visit_expr(value_ast);
 }
 
-int Return::visit_expr(VarType &result) {
-    if (value) {
-        return value->visit_expr(result);
-    }
-    return 0;
+int Return::visit_expr(std::shared_ptr<ASTNode> &self) {
+  if (value) {
+    int ret = value->visit_expr(self);
+    type = self->type;
+    return ret;
+  } else {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "返回值为空", line, __FILE__,
+                  __LINE__);
+    return -1;
+  }
 }
 
 int Return::gencode_stmt() {
@@ -18,9 +25,9 @@ int Return::gencode_stmt() {
   auto return_value = value->gencode_expr(VarType::NONE);
 
   // 如果返回值是字符串类型，增加引用计数
-  VarType return_type;
-  visit_expr(return_type);
-  if (return_type == VarType::STRING) {
+  std::shared_ptr<ASTNode> return_ast;
+  visit_expr(return_ast);
+  if (return_ast->type == VarType::STRING) {
     auto retain_func =
         ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");
     if (retain_func) {
@@ -42,13 +49,13 @@ int Return::gencode_stmt() {
         if (auto *allocaInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
           std::string var_name = allocaInst->getName().str();
           if (!var_name.empty()) {
-            auto &var_info = lookup_var_info(var_name);
-            VarType var_type = var_info.type;
+            auto var_node = lookup_var(var_name, line);
+            VarType var_type = var_node->type;
 
             // 如果是字符串类型，需要减少引用计数
             if (var_type == VarType::STRING) {
               // 获取变量的LLVM符号
-              auto var_ptr = lookup_var_llvm_obj(var_name);
+              auto var_ptr = var_node->llvm_obj;
               if (var_ptr) {
                 // 加载变量值
                 auto var_value = ctx.builder->CreateLoad(

@@ -2,19 +2,18 @@
 #include "TypeChecker.h"
 #include "ASTParser.h"
 
-int Print::visit_stmt(VarType &result) {
+int Print::visit_stmt() {
     // 检查每个表达式的类型
     for (const auto& value : values) {
-        VarType expr_type;
-        if (value->visit_expr(expr_type) == -1) {
+        std::shared_ptr<ASTNode> expr_ast;
+        if (value->visit_expr(expr_ast) == -1) {
             return -1;
         }
     }
-    result = VarType::VOID;
     return 0;
 }
 
-int Print::visit_expr(VarType &result) {
+int Print::visit_expr(std::shared_ptr<ASTNode> &self) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "print语句不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;
 }
@@ -26,12 +25,12 @@ int Print::gencode_stmt() {
 
   // 遍历所有要打印的值
   for (const auto &expr : values) {
-    VarType type;
+    std::shared_ptr<ASTNode> value_ast;
     auto value = expr->gencode_expr(VarType::NONE);
-    expr->visit_expr(type);
+    expr->visit_expr(value_ast);
 
     // 根据类型添加对应的格式化字符串
-    switch (type) {
+    switch (value_ast->type) {
     case VarType::INT:
       format_str += "%ld ";
       printf_args.push_back(value);
@@ -75,7 +74,7 @@ int Print::gencode_stmt() {
     }
     default:
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                    "不支持的打印类型: " + var_type_to_string(type), line,
+                    "不支持的打印类型: " + var_type_to_string(value_ast->type), line,
                     __FILE__, __LINE__);
       return -1;
     }

@@ -34,8 +34,8 @@ public:
     // Get raw Unicode string
     const icu::UnicodeString& get_unicode() const { return unicode_value; }
 
-    int visit_stmt(VarType &result) override;
-    int visit_expr(VarType &result) override;
+    int visit_stmt() override;
+    int visit_expr(std::shared_ptr<ASTNode> &self) override;
     int gencode_stmt() override;
     llvm::Value *gencode_expr(VarType expected_type) override;
 };

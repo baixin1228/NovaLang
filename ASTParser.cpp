@@ -24,10 +24,16 @@
 #include "AST/DictLiteral.h"
 #include "AST/ListLiteral.h"
 #include "AST/StructFieldAccess.h"
+#include "AST/StructFieldAssign.h"
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
+
+#define CONSUME_NEW_LINE \
+    while (current().type == TOK_NEWLINE) { \
+        consume(TOK_NEWLINE, __FILE__, __LINE__); \
+    }
 
 int ASTParser::parse() {
     int i = 0;
@@ -39,11 +45,6 @@ int ASTParser::parse() {
         }
         auto stmt = parse_stmt();
         if (stmt) {
-            if (auto* func = dynamic_cast<Function*>(&*stmt)) {
-              func->add_func_info(func->name);
-              auto& func_info = func->lookup_func_info(func->name);
-              func_info.ast_index = ctx.get_ast().size();
-            }
             ctx.add_ast_node(std::move(stmt));
         } else {
             return -1;
@@ -53,11 +54,12 @@ int ASTParser::parse() {
 }
 
 std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
+    CONSUME_NEW_LINE;
     if (current().type == TOK_DEF) {
         return parse_function();
+    }
+    if (current().type == TOK_CLASS) {
+        return parse_class();
     }
     if (current().type == TOK_WHILE) {
         return parse_while();
@@ -72,10 +74,8 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         int ln = current().line;
         consume(TOK_RETURN, __FILE__, __LINE__);
         auto value = parse_expr();
-        while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE, __FILE__, __LINE__);
-        }
-        return std::make_unique<Return>(ctx, std::move(value), ln);
+        CONSUME_NEW_LINE;
+        return std::make_shared<Return>(ctx, std::move(value), ln);
     }
     if (current().type == TOK_PRINT) {
         int ln = current().line;
@@ -92,85 +92,127 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         }
         
         consume(TOK_RPAREN, __FILE__, __LINE__);
-        while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE, __FILE__, __LINE__);
-        }
-        return std::make_unique<Print>(ctx, std::move(values), ln);
+        CONSUME_NEW_LINE;
+        return std::make_shared<Print>(ctx, std::move(values), ln);
     }
     if (current().type == TOK_ID) {
         std::string id = current().value;
         int ln = current().line;
         consume(TOK_ID, __FILE__, __LINE__);
+        
+        // Create a Variable node for the initial object
+        auto object = std::make_shared<Variable>(ctx, id, ln);
+        
+        // Check for nested field access
+        std::vector<std::string> field_path;
+        while (current().type == TOK_DOT) {
+            consume(TOK_DOT, __FILE__, __LINE__);
+            
+            if (current().type != TOK_ID) {
+                ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                             "字段访问后必须是标识符，得到: " + token_type_to_string(current().type), 
+                             current().line, __FILE__, __LINE__);
+                return nullptr;
+            }
+            
+            std::string field_name = current().value;
+            field_path.push_back(field_name);
+            consume(TOK_ID, __FILE__, __LINE__);
+        }
+        
+        // If no field access, handle as a regular variable
+        if (field_path.empty()) {
+            if (current().type == TOK_ASSIGN) {
+                consume(TOK_ASSIGN, __FILE__, __LINE__);
+                
+                // If the next token is another ID and it's followed by assignment,
+                // we have a chained assignment
+                std::vector<std::string> ids = {id};
+                auto value = parse_assign_expr(ids);
+
+                CONSUME_NEW_LINE;
+
+                // Process the assignments in reverse order
+                auto result = std::move(value);
+                for (int i = ids.size() - 1; i >= 0; --i) {
+                    result = std::make_shared<Assign>(ctx, ids[i], std::move(result), ln);
+                }
+                
+                return result;
+            }
+            if (current().type == TOK_PLUSEQ) {
+                consume(TOK_PLUSEQ, __FILE__, __LINE__);
+                auto value = parse_expr();
+                CONSUME_NEW_LINE;
+                return std::make_shared<CompoundAssign>(ctx, id, "+=", std::move(value), ln);
+            }
+            if (current().type == TOK_MINUSEQ) {
+                consume(TOK_MINUSEQ, __FILE__, __LINE__);
+                auto value = parse_expr();
+                CONSUME_NEW_LINE;
+                return std::make_shared<CompoundAssign>(ctx, id, "-=", std::move(value), ln);
+            }
+            if (current().type == TOK_STAREQ) {
+                consume(TOK_STAREQ, __FILE__, __LINE__);
+                auto value = parse_expr();
+                CONSUME_NEW_LINE;
+                return std::make_shared<CompoundAssign>(ctx, id, "*=", std::move(value), ln);
+            }
+            if (current().type == TOK_SLASHEQ) {
+                consume(TOK_SLASHEQ, __FILE__, __LINE__);
+                auto value = parse_expr();
+                CONSUME_NEW_LINE;
+                return std::make_shared<CompoundAssign>(ctx, id, "/=", std::move(value), ln);
+            }
+            if (current().type == TOK_PLUSPLUS) {
+                consume(TOK_PLUSPLUS, __FILE__, __LINE__);
+                CONSUME_NEW_LINE;
+                return std::make_shared<Increment>(ctx, id, ln);
+            }
+            pos--;
+            return object;
+        }
+        
+        // Handle field access and nested field assignments
+        
+        // First, build the access path through the nested fields
+        std::shared_ptr<ASTNode> current_expr = std::move(object);
+        
+        // Process all fields except the last one (which might be an assignment target)
+        for (size_t i = 0; i < field_path.size() - 1; i++) {
+            current_expr = std::make_shared<StructFieldAccess>(ctx, std::move(current_expr), field_path[i], ln);
+        }
+        
+        // Check if the last field is an assignment target
         if (current().type == TOK_ASSIGN) {
             consume(TOK_ASSIGN, __FILE__, __LINE__);
-            
-            // If the next token is another ID and it's followed by assignment,
-            // we have a chained assignment
-            std::vector<std::string> ids = {id};
-            auto value = parse_assign_expr(ids);
-            
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            
-            // Process the assignments in reverse order
-            auto result = std::move(value);
-            for (int i = ids.size() - 1; i >= 0; --i) {
-                result = std::make_unique<Assign>(ctx, ids[i], std::move(result), ln);
-            }
-            
-            return result;
-        }
-        if (current().type == TOK_PLUSEQ) {
-            consume(TOK_PLUSEQ, __FILE__, __LINE__);
             auto value = parse_expr();
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            return std::make_unique<CompoundAssign>(ctx, id, "+=", std::move(value), ln);
+            CONSUME_NEW_LINE;
+            
+            // Create a StructFieldAssign for the last field in the path
+            return std::make_shared<StructFieldAssign>(
+                ctx, field_path.back(), std::move(current_expr), std::move(value), ln);
         }
-        if (current().type == TOK_MINUSEQ) {
-            consume(TOK_MINUSEQ, __FILE__, __LINE__);
-            auto value = parse_expr();
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            return std::make_unique<CompoundAssign>(ctx, id, "-=", std::move(value), ln);
+        
+        // If not an assignment, complete the field access chain
+        current_expr = std::make_shared<StructFieldAccess>(
+            ctx, std::move(current_expr), field_path.back(), ln);
+        
+        // Check if this field access is followed by a function call
+        if (current().type == TOK_LPAREN) {
+            // 调用parse_call，使用字段名作为函数名，current_expr作为前向表达式
+            return parse_call(field_path.back(), current_expr, ln);
         }
-        if (current().type == TOK_STAREQ) {
-            consume(TOK_STAREQ, __FILE__, __LINE__);
-            auto value = parse_expr();
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            return std::make_unique<CompoundAssign>(ctx, id, "*=", std::move(value), ln);
-        }
-        if (current().type == TOK_SLASHEQ) {
-            consume(TOK_SLASHEQ, __FILE__, __LINE__);
-            auto value = parse_expr();
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            return std::make_unique<CompoundAssign>(ctx, id, "/=", std::move(value), ln);
-        }
-        if (current().type == TOK_PLUSPLUS) {
-            consume(TOK_PLUSPLUS, __FILE__, __LINE__);
-            while (current().type == TOK_NEWLINE) {
-                consume(TOK_NEWLINE, __FILE__, __LINE__);
-            }
-            return std::make_unique<Increment>(ctx, id, ln);
-        }
-        pos--;
+        
+        return current_expr;
     }
     if (current().type == TOK_GLOBAL) {
         return parse_global();
     }
     auto expr = parse_expr();
     if (expr) {
-        while (current().type == TOK_NEWLINE) {
-            consume(TOK_NEWLINE, __FILE__, __LINE__);
-        }
-        return expr;
+      CONSUME_NEW_LINE;
+      return expr;
     }
     return nullptr;
 }
@@ -189,9 +231,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_function() {
     }
     consume(TOK_RPAREN, __FILE__, __LINE__);
     consume(TOK_COLON, __FILE__, __LINE__);
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
+    CONSUME_NEW_LINE;
     consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::shared_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
@@ -199,7 +239,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_function() {
         if (stmt) body.push_back(std::move(stmt));
     }
     consume(TOK_DEDENT, __FILE__, __LINE__);
-    return std::make_unique<Function>(ctx, name, std::move(params),
+    return std::make_shared<Function>(ctx, name, std::move(params),
                                       std::move(body), ln);
 }
 
@@ -208,9 +248,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_while() {
     consume(TOK_WHILE, __FILE__, __LINE__);
     auto condition = parse_expr();
     consume(TOK_COLON, __FILE__, __LINE__);
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
+    CONSUME_NEW_LINE;
     consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::shared_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
@@ -218,14 +256,14 @@ std::shared_ptr<ASTNode> ASTParser::parse_while() {
         if (stmt) body.push_back(std::move(stmt));
     }
     consume(TOK_DEDENT, __FILE__, __LINE__);
-    return std::make_unique<While>(ctx, std::move(condition), std::move(body),
+    return std::make_shared<While>(ctx, std::move(condition), std::move(body),
                                    ln);
 }
 
 std::shared_ptr<ASTNode> ASTParser::parse_for() {
     int ln = current().line;
     consume(TOK_FOR, __FILE__, __LINE__);
-    std::string iterator = current().value;
+    auto loop_var = std::make_shared<Variable>(ctx, current().value, current().line);
     consume(TOK_ID, __FILE__, __LINE__);
     consume(TOK_IN, __FILE__, __LINE__);
     consume(TOK_RANGE, __FILE__, __LINE__);
@@ -233,9 +271,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_for() {
     auto end = parse_expr();
     consume(TOK_RPAREN, __FILE__, __LINE__);
     consume(TOK_COLON, __FILE__, __LINE__);
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
+    CONSUME_NEW_LINE;
     consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::shared_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
@@ -243,7 +279,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_for() {
         if (stmt) body.push_back(std::move(stmt));
     }
     consume(TOK_DEDENT, __FILE__, __LINE__);
-    return std::make_unique<For>(ctx, iterator, std::move(end), std::move(body),
+    return std::make_shared<For>(ctx, loop_var, std::move(end), std::move(body),
                                  ln);
 }
 
@@ -252,9 +288,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_if() {
     consume(TOK_IF, __FILE__, __LINE__);
     auto condition = parse_expr();
     consume(TOK_COLON, __FILE__, __LINE__);
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
+    CONSUME_NEW_LINE;
     consume(TOK_INDENT, __FILE__, __LINE__);
     std::vector<std::shared_ptr<ASTNode>> body;
     while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
@@ -268,7 +302,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_if() {
         consume(TOK_ELIF, __FILE__, __LINE__);
         auto elif_cond = parse_expr();
         consume(TOK_COLON, __FILE__, __LINE__);
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
+        CONSUME_NEW_LINE;
         consume(TOK_INDENT, __FILE__, __LINE__);
         std::vector<std::shared_ptr<ASTNode>> elif_body;
         while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
@@ -282,7 +316,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_if() {
     if (current().type == TOK_ELSE) {
         consume(TOK_ELSE, __FILE__, __LINE__);
         consume(TOK_COLON, __FILE__, __LINE__);
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
+        CONSUME_NEW_LINE;
         consume(TOK_INDENT, __FILE__, __LINE__);
         while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
             auto stmt = parse_stmt();
@@ -290,7 +324,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_if() {
         }
         consume(TOK_DEDENT, __FILE__, __LINE__);
     }
-    return std::make_unique<If>(ctx, std::move(condition), std::move(body),
+    return std::make_shared<If>(ctx, std::move(condition), std::move(body),
                                 std::move(elifs), std::move(else_body), ln);
 }
 
@@ -305,7 +339,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_logic_or() {
         std::string op = "or";
         consume(TOK_OR, __FILE__, __LINE__);
         auto right = parse_logic_and();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -318,7 +352,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_logic_and() {
         std::string op = "and";
         consume(TOK_AND, __FILE__, __LINE__);
         auto right = parse_equality();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -337,7 +371,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_equality() {
             consume(TOK_NEQ, __FILE__, __LINE__);
         }
         auto right = parse_comparison();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -362,7 +396,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_comparison() {
             consume(TOK_LTEQ, __FILE__, __LINE__);
         }
         auto right = parse_term();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -381,7 +415,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_term() {
             consume(TOK_MINUS, __FILE__, __LINE__);
         }
         auto right = parse_factor();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -413,7 +447,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_factor() {
             consume(TOK_EXPONENT, __FILE__, __LINE__);
         }
         auto right = parse_unary();
-        left = std::make_unique<BinOp>(ctx, op, std::move(left),
+        left = std::make_shared<BinOp>(ctx, op, std::move(left),
                                        std::move(right), ln);
     }
     return left;
@@ -425,20 +459,20 @@ std::shared_ptr<ASTNode> ASTParser::parse_unary() {
         consume(TOK_MINUS, __FILE__, __LINE__);
         auto expr = parse_unary();
         // 这里为了简化，直接将 -x 转换为 0 - x
-        auto zero = std::make_unique<IntLiteral>(ctx, 0, ln);
-        return std::make_unique<BinOp>(ctx, "-", std::move(zero), std::move(expr), ln);
+        auto zero = std::make_shared<IntLiteral>(ctx, 0, ln);
+        return std::make_shared<BinOp>(ctx, "-", std::move(zero), std::move(expr), ln);
     }
     if (current().type == TOK_NOT) {
         int ln = current().line;
         consume(TOK_NOT, __FILE__, __LINE__);
         auto expr = parse_unary();
-        return std::make_unique<UnaryOp>(ctx, "not", std::move(expr), ln);
+        return std::make_shared<UnaryOp>(ctx, "not", std::move(expr), ln);
     }
     
     // 解析主要表达式
     auto primary = parse_primary();
     
-    // 检查是否是字段访问
+    // 检查是否是字段访问 - 允许链式访问 (如 obj.field1.field2)
     while (current().type == TOK_DOT) {
         int ln = current().line;
         consume(TOK_DOT, __FILE__, __LINE__);
@@ -452,65 +486,150 @@ std::shared_ptr<ASTNode> ASTParser::parse_unary() {
         
         std::string field_name = current().value;
         consume(TOK_ID, __FILE__, __LINE__);
-        
-        primary = std::make_unique<StructFieldAccess>(ctx, std::move(primary), field_name, ln);
+        if (current().type == TOK_LPAREN) {
+          primary = parse_call(field_name, primary, ln);
+        } else {
+          primary = std::make_shared<StructFieldAccess>(ctx, std::move(primary), field_name, ln);
+        }
     }
     
     return primary;
 }
 
 std::shared_ptr<ASTNode> ASTParser::parse_primary() {
-    if (current().type == TOK_STRING) {
-        std::string value = current().string_value;
-        int ln = current().line;
-        consume(TOK_STRING, __FILE__, __LINE__);
-        return std::make_unique<StringLiteral>(ctx, value, ln);
-    }
-    if (current().type == TOK_INT) {
-        int value = current().int_value;
-        int ln = current().line;
+    Token cur = current();
+    
+    if (cur.type == TOK_INT) {
         consume(TOK_INT, __FILE__, __LINE__);
-        return std::make_unique<IntLiteral>(ctx, value, ln);
+        return std::make_shared<IntLiteral>(ctx, cur.int_value, cur.line);
     }
-    if (current().type == TOK_FLOAT) {
-        double value = current().float_value;
-        int ln = current().line;
+    
+    if (cur.type == TOK_FLOAT) {
         consume(TOK_FLOAT, __FILE__, __LINE__);
-        return std::make_unique<FloatLiteral>(ctx, value, ln);
+        return std::make_shared<FloatLiteral>(ctx, cur.float_value, cur.line);
     }
-    if (current().type == TOK_TRUE) {
-        int ln = current().line;
+    
+    if (cur.type == TOK_STRING) {
+        consume(TOK_STRING, __FILE__, __LINE__);
+        return std::make_shared<StringLiteral>(ctx, cur.string_value, cur.line);
+    }
+    
+    if (cur.type == TOK_TRUE) {
         consume(TOK_TRUE, __FILE__, __LINE__);
-        return std::make_unique<BoolLiteral>(ctx, true, ln);
+        return std::make_shared<BoolLiteral>(ctx, true, cur.line);
     }
-    if (current().type == TOK_FALSE) {
-        int ln = current().line;
+    
+    if (cur.type == TOK_FALSE) {
         consume(TOK_FALSE, __FILE__, __LINE__);
-        return std::make_unique<BoolLiteral>(ctx, false, ln);
+        return std::make_shared<BoolLiteral>(ctx, false, cur.line);
     }
-    if (current().type == TOK_ID) {
-        std::string name = current().value;
-        int ln = current().line;
-        consume(TOK_ID, __FILE__, __LINE__);
+    
+    // 处理 super 关键字
+    if (cur.type == TOK_SUPER) {
+        int line = cur.line;
+        consume(TOK_SUPER, __FILE__, __LINE__);
+        
+        // 创建一个表示 super 的变量
+        auto super_var = std::make_shared<Variable>(ctx, "super", line);
+        
+        // 检查是否是方法调用 super()
         if (current().type == TOK_LPAREN) {
+            // 处理 super() 调用
             consume(TOK_LPAREN, __FILE__, __LINE__);
+            
+            // 解析可能的参数
             std::vector<std::shared_ptr<ASTNode>> args;
-            while (current().type != TOK_RPAREN) {
-                args.push_back(parse_expr());
-                if (current().type == TOK_COMMA) consume(TOK_COMMA, __FILE__, __LINE__);
+            if (current().type != TOK_RPAREN) {
+                do {
+                    auto arg = parse_expr();
+                    if (!arg) {
+                        return nullptr;
+                    }
+                    args.push_back(arg);
+                    
+                    if (current().type != TOK_COMMA) {
+                        break;
+                    }
+                    consume(TOK_COMMA, __FILE__, __LINE__);
+                } while (true);
             }
+            
             consume(TOK_RPAREN, __FILE__, __LINE__);
-            return std::make_unique<Call>(ctx, name, std::move(args), ln);
+            
+            // 创建一个super()调用
+            auto super_call = std::make_shared<Call>(ctx, "super", args, nullptr, line);
+            
+            // 检查是否有后续的方法调用 super().__init__()
+            if (current().type == TOK_DOT) {
+                // Use StructFieldAccess instead of AttributeAccess
+                consume(TOK_DOT, __FILE__, __LINE__);
+                std::string method_name = current().value;
+                consume(TOK_ID, __FILE__, __LINE__);
+                if (current().type == TOK_LPAREN) {
+                    return parse_call(method_name, super_call, line);
+                } else {
+                    return std::make_shared<StructFieldAccess>(ctx, std::move(super_call), method_name, line);
+                }
+            }
+            
+            return super_call;
         }
-        return std::make_unique<Variable>(ctx, name, ln);
+        
+        // 检查是否有后续的属性访问 super.attr
+        if (current().type == TOK_DOT) {
+            // Use StructFieldAccess instead of AttributeAccess
+            consume(TOK_DOT, __FILE__, __LINE__);
+            std::string field_name = current().value;
+            consume(TOK_ID, __FILE__, __LINE__);
+            if (current().type == TOK_LPAREN) {
+                return parse_call(field_name, super_var, line);
+            } else {
+                return std::make_shared<StructFieldAccess>(ctx, std::move(super_var), field_name, line);
+            }
+        }
+        
+        return super_var;
     }
-    if (current().type == TOK_LPAREN) {
+    
+    // 处理 self 关键字，现在作为普通标识符
+    if (cur.type == TOK_ID && cur.value == "self") {
+        consume(TOK_ID, __FILE__, __LINE__);
+        // 创建一个表示 self 的变量
+        auto self_var = std::make_shared<Variable>(ctx, "self", cur.line);
+        
+        // 检查是否紧跟着有点号，如果有则解析结构体字段访问
+        if (current().type == TOK_DOT) {
+            consume(TOK_DOT, __FILE__, __LINE__);
+            std::string field_name = current().value;
+            consume(TOK_ID, __FILE__, __LINE__);
+            if (current().type == TOK_LPAREN) {
+                return parse_call(field_name, self_var, cur.line);
+            } else {
+                return std::make_shared<StructFieldAccess>(ctx, std::move(self_var), field_name, cur.line);
+            }
+        }
+        
+        return self_var;
+    }
+    
+    if (cur.type == TOK_ID) {
+        std::string name = cur.value;
+        consume(TOK_ID, __FILE__, __LINE__);
+        
+        if (current().type == TOK_LPAREN) {
+            return parse_call(name, nullptr, cur.line);
+        }
+        
+        return std::make_shared<Variable>(ctx, name, cur.line);
+    }
+    
+    if (cur.type == TOK_LPAREN) {
         consume(TOK_LPAREN, __FILE__, __LINE__);
         auto expr = parse_expr();
         consume(TOK_RPAREN, __FILE__, __LINE__);
         return expr;
     }
-    if (current().type == TOK_LBRACE) {
+    if (cur.type == TOK_LBRACE) {
         // 如果是空大括号，直接报错
         if (pos + 1 < tokens.size() && tokens[pos + 1].type == TOK_RBRACE) {
             ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
@@ -536,7 +655,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_primary() {
             return nullptr;
         }
     }
-    if (current().type == TOK_LBRACKET) {
+    if (cur.type == TOK_LBRACKET) {
         // 如果是空方括号，直接报错
         if (pos + 1 < tokens.size() && tokens[pos + 1].type == TOK_RBRACKET) {
             ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
@@ -559,10 +678,8 @@ std::shared_ptr<ASTNode> ASTParser::parse_global() {
     std::vector<std::string> var_names;
     var_names.push_back(current().value);
     consume(TOK_ID, __FILE__, __LINE__);
-    while (current().type == TOK_NEWLINE) {
-        consume(TOK_NEWLINE, __FILE__, __LINE__);
-    }
-    return std::make_unique<Global>(ctx, std::move(var_names), ln);
+    CONSUME_NEW_LINE;
+    return std::make_shared<Global>(ctx, std::move(var_names), ln);
 }
 
 void ASTParser::print_ast() {
@@ -631,7 +748,21 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
     }
     
     consume(TOK_RBRACE, __FILE__, __LINE__);
-    return std::make_unique<StructLiteral>(ctx, std::move(fields), ln);
+    
+    // 创建结构体字面量，对于普通结构体，函数和属性为空
+    std::vector<std::shared_ptr<ASTNode>> functions;
+    std::map<std::string, std::shared_ptr<ASTNode>> attributes;
+    
+    // 使用空名称和STRUCT类型
+    return std::make_shared<StructLiteral>(
+        ctx, 
+        "",  // 匿名结构体
+        std::move(fields), 
+        std::move(functions), 
+        std::move(attributes),
+        StructType::STRUCT,
+        ln
+    );
 }
 
 // 解析字典字面量
@@ -652,7 +783,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
     
     Token key_token = current();
     consume(TOK_STRING, __FILE__, __LINE__);
-    auto key = std::make_unique<StringLiteral>(ctx, key_token.string_value, key_token.line);
+    auto key = std::make_shared<StringLiteral>(ctx, key_token.string_value, key_token.line);
     
     consume(TOK_COLON, __FILE__, __LINE__);
     auto value = parse_expr();
@@ -679,7 +810,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
         
         key_token = current();
         consume(TOK_STRING, __FILE__, __LINE__);
-        key = std::make_unique<StringLiteral>(ctx, key_token.string_value, key_token.line);
+        key = std::make_shared<StringLiteral>(ctx, key_token.string_value, key_token.line);
         
         consume(TOK_COLON, __FILE__, __LINE__);
         value = parse_expr();
@@ -690,7 +821,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
     }
     
     consume(TOK_RBRACE, __FILE__, __LINE__);
-    return std::make_unique<DictLiteral>(ctx, std::move(items), ln);
+    return std::make_shared<DictLiteral>(ctx, std::move(items), ln);
 }
 
 // 解析列表字面量
@@ -725,7 +856,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_list_literal() {
     }
     
     consume(TOK_RBRACKET, __FILE__, __LINE__);
-    return std::make_unique<ListLiteral>(ctx, std::move(elements), ln);
+    return std::make_shared<ListLiteral>(ctx, std::move(elements), ln);
 }
 
 // Helper method to parse assignment expressions
@@ -750,3 +881,99 @@ std::shared_ptr<ASTNode> ASTParser::parse_assign_expr(std::vector<std::string>& 
     // Parse the rightmost expression
     return parse_expr();
 }
+
+// Parse method call on an object
+std::shared_ptr<ASTNode> ASTParser::parse_call(std::string func_name, std::shared_ptr<ASTNode> last_expr, int line) {
+    consume(TOK_LPAREN, __FILE__, __LINE__);
+    std::vector<std::shared_ptr<ASTNode>> args;
+    while (current().type != TOK_RPAREN) {
+        args.push_back(parse_expr());
+        if (current().type == TOK_COMMA)
+            consume(TOK_COMMA, __FILE__, __LINE__);
+    }
+    consume(TOK_RPAREN, __FILE__, __LINE__);
+    return std::make_shared<Call>(ctx, func_name, std::move(args), last_expr, line);
+}
+
+std::shared_ptr<ASTNode> ASTParser::parse_class() {
+    int line = current().line;
+    consume(TOK_CLASS, __FILE__, __LINE__);
+    
+    // 获取类名
+    std::string class_name = "";
+    if (current().type == TOK_ID) {
+        class_name = current().value;
+        consume(TOK_ID, __FILE__, __LINE__);
+    } else {
+        ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                     "类定义必须有名称", 
+                     line, __FILE__, __LINE__);
+        return nullptr;
+    }
+    
+    // 处理父类（暂时忽略继承关系）
+    std::string parent_class = "";
+    if (current().type == TOK_LPAREN) {
+        consume(TOK_LPAREN, __FILE__, __LINE__);
+        if (current().type == TOK_ID) {
+            parent_class = current().value;
+            consume(TOK_ID, __FILE__, __LINE__);
+        }
+        consume(TOK_RPAREN, __FILE__, __LINE__);
+    }
+    
+    // 准备存储结构体的不同部分
+    std::map<std::string, std::shared_ptr<ASTNode>> fields;      // 实例变量
+    std::vector<std::shared_ptr<ASTNode>> functions;             // 函数列表
+    std::map<std::string, std::shared_ptr<ASTNode>> attributes;  // 类属性
+    
+    if (current().type == TOK_COLON) {
+        consume(TOK_COLON, __FILE__, __LINE__);
+        CONSUME_NEW_LINE;
+        consume(TOK_INDENT, __FILE__, __LINE__);
+        
+        // 解析类体内容
+        while (current().type != TOK_DEDENT && current().type != TOK_EOF) {
+            if (current().type == TOK_DEF) {
+                // 解析函数
+                auto func = parse_function();
+                if (func) {
+                    functions.push_back(func);
+                }
+            } else {
+                // 解析属性
+                if (current().type == TOK_ID) {
+                    std::string attr_name = current().value;
+                    consume(TOK_ID, __FILE__, __LINE__);
+                    
+                    if (current().type == TOK_ASSIGN) {
+                        consume(TOK_ASSIGN, __FILE__, __LINE__);
+                        auto value = parse_expr();
+                        if (value) {
+                            // 这里我们将其视为类属性
+                            attributes[attr_name] = value;
+                        }
+                    } else {
+                        // 如果没有初始化值，设置为null
+                        attributes[attr_name] = nullptr;
+                    }
+                }
+                CONSUME_NEW_LINE;
+            }
+        }
+        
+        consume(TOK_DEDENT, __FILE__, __LINE__);
+    }
+    
+    // 创建一个表示类的StructLiteral节点，使用CLASS类型
+    return std::make_shared<StructLiteral>(
+        ctx, 
+        class_name,
+        std::move(fields),       // 实例字段
+        std::move(functions),    // 函数列表
+        std::move(attributes),   // 类属性
+        StructType::CLASS,       // 类型为CLASS
+        line
+    );
+}
+

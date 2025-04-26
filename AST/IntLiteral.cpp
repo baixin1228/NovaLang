@@ -1,14 +1,15 @@
 #include "IntLiteral.h"
 #include "Context.h"
 
-int IntLiteral::visit_stmt(VarType &result) {
+int IntLiteral::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "整数字面量不能作为语句使用", line, __FILE__, __LINE__);
     return -1;
 }
 
-int IntLiteral::visit_expr(VarType &result) {
-    result = VarType::INT;
-    return 0;
+int IntLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+  type = VarType::INT;
+  self = shared_from_this();
+  return 0;
 } 
 
 int IntLiteral::gencode_stmt() {

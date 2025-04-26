@@ -1,34 +1,28 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <llvm/IR/Value.h>
 
+// Forward declarations for LLVM types
+namespace llvm {
+  class Function;
+  class StructType;
+}
+
 enum class VarType {
-    VOID,
-    INT,
-    FLOAT,
-    BOOL,
-    STRING,
-    STRUCT,
-    DICT,
-    LIST,
-    NONE
-};
-
-struct VarInfo {
-  int line;
-  VarType type;
-  llvm::Value *llvm_obj;
-};
-
-struct FuncInfo {
-  int line;
-  int ast_index;
-  bool need_conjecture;
-  VarType return_type;
-  llvm::Function *llvm_obj;
-  std::vector<VarType> param_types;
+  NONE,
+  VOID,
+  INT,
+  FLOAT,
+  BOOL,
+  STRING,
+  STRUCT,
+  DICT,
+  LIST,
+  FUNCTION,
 };
 
 std::string var_type_to_string(VarType type);
 uint32_t get_type_align(VarType type);
 uint32_t get_max_align(VarType type1, VarType type2);
+void print_backtrace();

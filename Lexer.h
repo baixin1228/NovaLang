@@ -18,7 +18,9 @@ enum TokenType {
     TOK_LPAREN, TOK_RPAREN, TOK_LBRACE, TOK_RBRACE, TOK_LBRACKET, TOK_RBRACKET,
     TOK_COMMA, TOK_NEWLINE, TOK_INDENT, TOK_DEDENT, TOK_DOT,
     TOK_EOF, TOK_PRINT, TOK_FOR, TOK_IN, TOK_RANGE, TOK_IF, TOK_ELSE, TOK_ELIF,
-    TOK_GLOBAL, TOK_PLUSEQ, TOK_MINUSEQ, TOK_STAREQ, TOK_SLASHEQ, TOK_STRING, TOK_MODULO, TOK_EXPONENT, TOK_NEQ, TOK_LTEQ, TOK_DIVEQ
+    TOK_GLOBAL, TOK_PLUSEQ, TOK_MINUSEQ, TOK_STAREQ, TOK_SLASHEQ, TOK_STRING, TOK_MODULO, TOK_EXPONENT, TOK_NEQ, TOK_LTEQ, TOK_DIVEQ,
+    // 面向对象相关的 token
+    TOK_CLASS, TOK_INIT, TOK_INHERIT, TOK_SUPER
 };
 
 struct Token {
@@ -59,7 +61,7 @@ class Lexer {
 
 public:
   Lexer(Context &ctx, const std::string &src) : ctx(ctx), input(src) {}
-  std::vector<Token> tokenize();
+  int tokenize(std::vector<Token> &tokens);
   void print_tokens(const std::vector<Token> &tokens);
 
 private:

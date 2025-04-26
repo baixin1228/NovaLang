@@ -22,13 +22,8 @@ cd build
 echo "Running cmake..."
 cmake ..
 
-# Compile the project
-echo "Compiling the project..."
-make -j$(nproc)
-
-# Run the specified test
 echo "Running test: $TEST_NAME..."
-make run_$TEST_NAME
+make -j$(nproc) && make run_$TEST_NAME
 
 # Print status
 echo "Test completed!" 

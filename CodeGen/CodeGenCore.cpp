@@ -4,17 +4,24 @@
 #include "If.h"
 #include "For.h"
 #include "While.h"
+#include "Variable.h"
+// Set debug location for each statement only if debug info is enabled
+// if (generate_debug_info) {
+//     auto debug_loc = llvm::DILocation::get(context, node.line, 0,
+//     current_function->getSubprogram());
+//     builder.SetCurrentDebugLocation(debug_loc);
+// }
 
 int CodeGen::generate_global_variable(Assign &assign) {
-  auto &var_info = assign.lookup_var_info(assign.var);
-  VarType type = var_info.type;
-  if (type == VarType::NONE) {
+  auto var_node = assign.lookup_var(assign.var, assign.line);
+  if (!var_node) {
     throw std::runtime_error("未定义的变量: " + assign.var +
                              " source:" + std::to_string(assign.line) +
                              " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
     return -1;
   }
+  VarType type = var_node->type;
 
   if (assign.need_create) {
     llvm::Type *ty;
@@ -50,7 +57,7 @@ int CodeGen::generate_global_variable(Assign &assign) {
                                  assign.var);
     global_var->setAlignment(llvm::Align(get_type_align(type)));
 
-    assign.add_var_llvm_obj(assign.var, global_var);
+    var_node->llvm_obj = global_var;
   }
 
   if (auto *assign_value = dynamic_cast<Assign *>(assign.value.get())) {
@@ -66,8 +73,8 @@ void CodeGen::GenLocalVar(Assign &assign) {
     return;
   }
 
-  auto &var_info = assign.lookup_var_info(assign.var);
-  VarType type = var_info.type;
+  auto var_node = assign.lookup_var(assign.var, assign.line);
+  VarType type = var_node->type;
   llvm::Type *ty;
   switch (type) {
   case VarType::INT:
@@ -91,41 +98,43 @@ void CodeGen::GenLocalVar(Assign &assign) {
   }
   auto ptr = ctx.builder->CreateAlloca(ty, nullptr, assign.var);
   ptr->setAlignment(llvm::Align(get_type_align(type)));
-  assign.add_var_llvm_obj(assign.var, ptr);
+  var_node->llvm_obj = ptr;
 }
 
 int CodeGen::generate_function(Function &func) {
   std::cout << "==== Generating function: " << func.name
             << " ====" << std::endl;
-  
-  if (!ctx.has_func(func.name)) {
+  auto ast_node = func.lookup_func(func.name);
+  if (!ast_node) {
     throw std::runtime_error("未定义函数: " + func.name +
                              " code:" + std::to_string(func.line) +
                              " line:" + std::to_string(__LINE__));
     return -1;
   }
-    auto &func_info = func.lookup_func_info(func.name);
 
     std::vector<llvm::Type*> llvm_param_types;
-    for (auto& type : func_info.param_types) {
-        switch (type) {
-          case VarType::INT:
-            llvm_param_types.push_back(ctx.builder->getInt64Ty());
-            break;
-          case VarType::FLOAT:
-            llvm_param_types.push_back(ctx.builder->getDoubleTy());
-            break;
-          case VarType::BOOL:
-            llvm_param_types.push_back(ctx.builder->getInt1Ty());
-            break;
-          default:
-            throw std::runtime_error("未知参数类型: " + std::to_string(static_cast<int>(type)) + " code:" + std::to_string(func.line) + " line:" + std::to_string(__LINE__));
-            return -1;
-            break;
-        }
+    for (auto &type : func.params) {
+      switch (type.second->type) {
+      case VarType::INT:
+        llvm_param_types.push_back(ctx.builder->getInt64Ty());
+        break;
+      case VarType::FLOAT:
+        llvm_param_types.push_back(ctx.builder->getDoubleTy());
+        break;
+      case VarType::BOOL:
+        llvm_param_types.push_back(ctx.builder->getInt1Ty());
+        break;
+      default:
+        throw std::runtime_error(
+            "未知参数类型: " + var_type_to_string(type.second->type) +
+            " code:" + std::to_string(func.line) +
+            " line:" + std::to_string(__LINE__));
+        return -1;
+        break;
+      }
     }
     llvm::Type* llvm_return_type;
-    switch (func_info.return_type) {
+    switch (func.type) {
       case VarType::INT:
         llvm_return_type = ctx.builder->getInt64Ty();
         break;
@@ -141,7 +150,7 @@ int CodeGen::generate_function(Function &func) {
     }
     auto func_ty = llvm::FunctionType::get(llvm_return_type, llvm_param_types, false);
     auto llvm_func = llvm::Function::Create(func_ty, llvm::Function::ExternalLinkage, func.name, *ctx.module);
-    func_info.llvm_obj = llvm_func;
+    func.llvm_obj = llvm_func;
 
     // 只有在需要生成调试信息时才创建调试信息
     if (generate_debug_info) {
@@ -170,8 +179,8 @@ int CodeGen::generate_function(Function &func) {
 
     size_t i = 0;
     for (auto& arg : llvm_func->args()) {
-        auto& param = func.params[i];
-        auto type = func_info.param_types[i];
+        auto& param = func.params[i].first;
+        auto type = func.params[i].second->type;
         if (type == VarType::NONE) {
           throw std::runtime_error("未知参数类型: " + param + " code:" + std::to_string(func.line) + " line:" + std::to_string(__LINE__));
           return -1;
@@ -197,7 +206,12 @@ int CodeGen::generate_function(Function &func) {
 
         auto str = ctx.builder->CreateStore(&arg, alloc);
         str->setAlignment(llvm::Align(get_type_align(type)));
-        func.add_var_llvm_obj(param, alloc);
+        auto param_node = func.lookup_var(param, func.line);
+        if (!param_node) {
+          throw std::runtime_error("未定义参数: " + param + " code:" + std::to_string(func.line) + " line:" + std::to_string(__LINE__));
+          return -1;
+        }
+        param_node->llvm_obj = alloc;
         ++i;
     }
 

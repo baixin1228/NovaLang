@@ -1,14 +1,15 @@
 #pragma once
 #include "ASTNode.h"
 #include <iostream>
+#include "Variable.h"
 
 class For : public ASTNode {
 public:
-    std::string iterator;
+    std::shared_ptr<Variable> iterator;
     std::shared_ptr<ASTNode> end;
     std::vector<std::shared_ptr<ASTNode>> body;
 
-    For(Context &ctx, std::string it, std::shared_ptr<ASTNode> e,
+    For(Context &ctx, std::shared_ptr<Variable> it, std::shared_ptr<ASTNode> e,
         std::vector<std::shared_ptr<ASTNode>> b, int ln)
         : ASTNode(ctx, ln),
           iterator(std::move(it)), 
@@ -27,7 +28,7 @@ public:
     }
 
     void print(int level) override {
-        std::cout << std::string(level * 2, ' ') << "For: " << iterator << " [行 " << line << "]\n";
+        std::cout << std::string(level * 2, ' ') << "For: " << iterator->name << " [行 " << line << "]\n";
         std::cout << std::string((level + 1) * 2, ' ') << "End:\n";
         end->print(level + 2);
         std::cout << std::string((level + 1) * 2, ' ') << "Body:\n";
@@ -36,8 +37,8 @@ public:
         }
     }
 
-    int visit_stmt(VarType &result) override;
-    int visit_expr(VarType &result) override;
+    int visit_stmt() override;
+    int visit_expr(std::shared_ptr<ASTNode> &self) override;
     int gencode_stmt() override;
     llvm::Value *gencode_expr(VarType expected_type) override;
 }; 

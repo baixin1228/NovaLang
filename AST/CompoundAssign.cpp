@@ -2,66 +2,69 @@
 #include "Common.h"
 #include "Context.h"
 #include <iostream>
-
+#include "Variable.h"
 void CompoundAssign::print(int indent) {
     std::cout << std::string(indent, ' ') << "CompoundAssign(" << var << " " << op << ")" << std::endl;
     value->print(indent + 2);
 }
 
-int CompoundAssign::visit_stmt(VarType &result) {
-    VarType type;
-    int ret = value->visit_expr(type);
+int CompoundAssign::visit_stmt() {
+    std::shared_ptr<ASTNode> value_ast;
+    int ret = value->visit_expr(value_ast);
     if (ret == -1) {
         return -1;
     }
 
-    auto& var_info = lookup_var_info(var);
-    if (var_info.type == VarType::NONE) {
+    auto var_node = lookup_var(var, line);
+    if (var_node->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
 
-    if (var_info.type != type && !(var_info.type == VarType::FLOAT && type == VarType::INT)) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+    if (var_node->type != value_ast->type &&
+        !(var_node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "变量：" + var +
-                    " 类型不匹配，得到的类型: " + var_type_to_string(type) +
-                    " 期望类型是：" + var_type_to_string(var_info.type),
+                        " 类型不匹配，得到的类型: " + var_type_to_string(value_ast->type) +
+                        " 期望类型是：" + var_type_to_string(var_node->type),
                     line, __FILE__, __LINE__);
-        return -1;
+      return -1;
     }
 
-    result = var_info.type;
     return 0;
 }
 
-int CompoundAssign::visit_expr(VarType &result) {
-    VarType type;
-    int ret = value->visit_expr(type);
+int CompoundAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
+    std::shared_ptr<ASTNode> value_ast;
+    int ret = value->visit_expr(value_ast);
     if (ret == -1) {
         return -1;
     }
 
-    auto& var_info = lookup_var_info(var);
-    if (var_info.type == VarType::NONE) {
+    auto var_node = lookup_var(var, line);
+    if (var_node->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
 
-    if (var_info.type != type && !(var_info.type == VarType::FLOAT && type == VarType::INT)) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                    "类型不匹配: " + var + " 是 " + var_type_to_string(var_info.type) +
-                    " 类型，但赋值表达式是 " + var_type_to_string(type) + " 类型",
-                    line, __FILE__, __LINE__);
-        return -1;
+    if (var_node->type != value_ast->type &&
+        !(var_node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
+      ctx.add_error(
+          ErrorHandler::ErrorLevel::TYPE,
+          "类型不匹配: " + var + " 是 " + var_type_to_string(var_node->type) +
+              " 类型，但赋值表达式是 " + var_type_to_string(value_ast->type) + " 类型",
+          line, __FILE__, __LINE__);
+      return -1;
     }
 
-    result = var_info.type;
+    self = shared_from_this();
+    type = var_node->type;
     return 0;
 }
 
 int CompoundAssign::gencode_stmt() {
-  auto &var_info = lookup_var_info(var);
-  VarType type = var_info.type;
+  auto var_node = lookup_var(var, line);
+  VarType type = var_node->type;
   if (type == VarType::NONE) {
     throw std::runtime_error("未定义的变量: " + var +
                              " source:" + std::to_string(line) +
@@ -76,7 +79,7 @@ int CompoundAssign::gencode_stmt() {
         std::to_string(line) + " line:" + std::to_string(__LINE__));
   }
 
-  auto ptr = lookup_var_llvm_obj(var);
+  auto ptr = var_node->llvm_obj;
   if (!ptr) {
     throw std::runtime_error("未定义的变量: " + var +
                              " source:" + std::to_string(line) +

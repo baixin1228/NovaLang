@@ -85,13 +85,14 @@ std::string StringLiteral::to_encoding(const char* encoding) const {
     return convertFromUnicode(unicode_value, encoding);
 }
 
-int StringLiteral::visit_stmt(VarType &result) {
+int StringLiteral::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "字符串字面量不能作为语句使用", line, __FILE__, __LINE__);
     return -1;
 }
 
-int StringLiteral::visit_expr(VarType &result) {
-    result = VarType::STRING;
+int StringLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+    type = VarType::STRING;
+    self = shared_from_this();
     return 0;
 }
 

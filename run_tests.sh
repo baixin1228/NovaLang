@@ -13,13 +13,8 @@ cd build
 echo "Running cmake..."
 cmake ..
 
-# Compile the project
-echo "Compiling the project..."
-make -j$(nproc)
-
-# Run all tests
 echo "Running all tests..."
-make run_all_tests
+make -j$(nproc) && make run_all_tests
 
 # Print status
 echo "All tests completed!" 

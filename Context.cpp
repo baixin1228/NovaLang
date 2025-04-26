@@ -1,65 +1,102 @@
 #include "Context.h"
 #include <string>
 #include "Common.h"
-#include "Function.h"  // 添加 Function 类的头文件
+#include "Variable.h"
 
-int Context::add_var_info(const std::string& name, int line) {
-    // 检查变量是否已存在且定义行号小于等于当前行
-    auto it = var_infos.find(name);
-    if (it != var_infos.end() && it->second.line <= line) {
+int Context::add_global_var(const std::string &name,
+                            std::shared_ptr<ASTNode> node) {
+  // 检查变量是否已存在且定义行号小于等于当前行
+  auto it = global_vars.find(name);
+  if (it != global_vars.end() && it->second->line <= node->line) {
+#ifdef DEBUG
+  std::cout << "-- add global var failed: " << name << " line:" << node->line << std::endl;
+#endif
         return -1;
     }
 
-    var_infos[name] = {.line = line};
+    if (!node)
+    {
+        throw std::runtime_error("add global var failed: " + name + " line:" + std::to_string(node->line) + " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
+        return -1;
+    }
+      global_vars[name] = node;
+#ifdef DEBUG
+  std::cout << "-- add global var: " << name << " " << node->line << std::endl;
+#endif
     return 0;
 }
 
-VarInfo& Context::lookup_var_info(const std::string &name, int line) {
-  auto it = var_infos.find(name);
-  if (it != var_infos.end()) {
-    if (it->second.line <= line) {
+std::shared_ptr<ASTNode> Context::lookup_global_var(const std::string &name,
+                                                    int line) {
+  auto it = global_vars.find(name);
+  if (it != global_vars.end()) {
+    if (it->second->line <= line) {
+        if (!it->second)
+        {
+            throw std::runtime_error("lookup global var failed: " + name + " line:" + std::to_string(line) + " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
+            return nullptr;
+        }
       return it->second;
     } else {
 #ifdef DEBUG
-            std::cout << "get global type failed: " << name << " line: " << line << " " << it->second.line << std::endl;
-            for (auto &[name, type] : var_infos) {
-                std::cout << name << " line: " << type.line << " type: " << var_type_to_string(type.type) << std::endl;
-            }
+      std::cout << "-- global var can't access: " << name << " line: " << line
+                << std::endl;
 #endif
-        }
     }
-    // throw std::runtime_error("variable not found: " + name +
-    //                          "source line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
-    return *new VarInfo{.line = line, .type = VarType::NONE};
+  } else {
+#ifdef DEBUG
+      std::cout << "-- get global var failed: " << name << " line: " << line
+                << std::endl;
+      for (auto &[name, node] : global_vars) {
+        std::cout << "    " << name
+                  << "-- available global var is line: " << node->line
+                  << " type: " << var_type_to_string(node->type) << std::endl;
+      }
+#endif
+    }
+    return nullptr;
 }
 
-int Context::add_func_info(const std::string &name) {
+int Context::add_global_func(const std::string &name, std::shared_ptr<ASTNode> node) {
   if (func_infos.find(name) == func_infos.end()) {
-    func_infos[name] = {};
+    func_infos[name] = node;
     return 0;
   }
   return -1;
 }
 
-FuncInfo& Context::get_func_info(const std::string &name) {
-  if (func_infos.find(name) == func_infos.end()) {
-    throw std::runtime_error("function not found: " + name + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
+std::shared_ptr<ASTNode> Context::lookup_global_func(const std::string &name) {
+  if(name.empty()) {
+    return nullptr;
   }
+  if (func_infos.find(name) == func_infos.end()) {
+#ifdef DEBUG
+    std::cout << "-- lookup global func failed: " << name << std::endl;
+#endif
+    return nullptr;
+  }
+#ifdef DEBUG
+  std::cout << "-- lookup global func: " << name << std::endl;
+#endif
   return func_infos[name];
 }
 
-bool Context::has_func(const std::string& name) const {
-    return func_infos.find(name) != func_infos.end();
+int Context::add_struct_info(const std::string &name) {
+  if (struct_infos.find(name) == struct_infos.end()) {
+    struct_infos[name] = {};
+#ifdef DEBUG
+    std::cout << "-- add global struct: " << name << std::endl;
+#endif
+    return 0;
+  }
+  return -1;
 }
 
-const std::shared_ptr<ASTNode>&
-Context::get_func(const std::string &name) const {
-  static const std::shared_ptr<ASTNode> null_ptr;
-  auto it = func_infos.find(name);
-  if (it != func_infos.end()) {
-    return ast[it->second.ast_index];
+StructInfo& Context::get_struct_info(const std::string &name) {
+  if (struct_infos.find(name) == struct_infos.end()) {
+    return *new StructInfo{.line = 0, .name = name, .type = nullptr};
   }
-  return null_ptr;
+  return struct_infos[name];
 }
 
 void Context::add_ast_node(std::shared_ptr<ASTNode> node) {
@@ -109,10 +146,35 @@ const std::string& Context::get_source_filename() const {
 void Context::add_global_struct(const std::string& name, std::shared_ptr<ASTNode> node) {
     if (global_structs.find(name) == global_structs.end()) {
         global_structs[name] = node;
+#ifdef DEBUG
+    std::cout << "add global struct: " << name << std::endl;
+#endif
     }
 }
 
 std::shared_ptr<ASTNode> Context::lookup_global_struct(const std::string& name) const {
     auto it = global_structs.find(name);
     return it != global_structs.end() ? it->second : nullptr;
+}
+
+llvm::Type* Context::get_llvm_type(VarType type) const {
+    switch (type) {
+        case VarType::INT:
+            return llvm::Type::getInt64Ty(*llvm_context);
+        case VarType::FLOAT:
+            return llvm::Type::getDoubleTy(*llvm_context);
+        case VarType::BOOL:
+            return llvm::Type::getInt1Ty(*llvm_context);
+        case VarType::STRING:
+            return llvm::PointerType::get(llvm::Type::getInt8Ty(*llvm_context), 0); // char*
+        case VarType::STRUCT:
+        case VarType::DICT:
+        case VarType::LIST:
+            // For custom types, we use a pointer type
+            return llvm::PointerType::get(*llvm_context, 0);
+        case VarType::VOID:
+        case VarType::NONE:
+        default:
+            return llvm::Type::getVoidTy(*llvm_context);
+    }
 }

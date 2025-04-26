@@ -7,7 +7,7 @@ fi
 cd build
 cmake ..
 if [ "$1" == "gdb" ]; then
-    make -j$(nproc) && gdb --args ./nova ../test.nova
+    make -j$(nproc) && gdb --args ./nova -j -D ../test.nova
 else
-    make -j$(nproc) && ./nova ../test.nova
+    make -j$(nproc) && ./nova -j -D ../test.nova
 fi

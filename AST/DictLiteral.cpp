@@ -2,71 +2,70 @@
 #include "TypeChecker.h"
 #include "StringLiteral.h"
 
-int DictLiteral::visit_stmt(VarType &result) {
-    result = VarType::DICT;
+int DictLiteral::visit_stmt() {
     return 0;
 }
 
-int DictLiteral::visit_expr(VarType &result) {
+int DictLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
     if (items.empty()) {
-        result = VarType::DICT;
         return 0;
     }
     
     // 确定键的类型
-    VarType first_key_type;
-    if (items[0].first->visit_expr(first_key_type) == -1) {
+    std::shared_ptr<ASTNode> key_ast;
+    if (items[0].first->visit_expr(key_ast) == -1) {
         return -1;
     }
     
     // 确保所有键都是字符串类型
-    if (first_key_type != VarType::STRING) {
+    if (key_ast->type != VarType::STRING) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                     "字典键必须是字符串类型，得到：" + var_type_to_string(first_key_type),
+                     "字典键必须是字符串类型，得到：" + var_type_to_string(key_ast->type),
                      line, __FILE__, __LINE__);
         return -1;
     }
     
-    key_type = first_key_type;
+    key_type = key_ast->type;
     
     // 确定值的类型
-    VarType first_value_type;
-    if (items[0].second->visit_expr(first_value_type) == -1) {
+    std::shared_ptr<ASTNode> value_ast;
+    if (items[0].second->visit_expr(value_ast) == -1) {
         return -1;
     }
-    
-    value_type = first_value_type;
-    
+
+    value_type = value_ast->type;
+
     // 确保所有键和值都有合适的类型
     for (size_t i = 1; i < items.size(); ++i) {
-        VarType key_type_i;
-        if (items[i].first->visit_expr(key_type_i) == -1) {
+        std::shared_ptr<ASTNode> item_key_ast;
+        if (items[i].first->visit_expr(item_key_ast) == -1) {
             return -1;
         }
         
-        if (key_type_i != key_type) {
+        if (item_key_ast->type != key_type) {
             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                          "字典键类型不一致，期望：" + var_type_to_string(key_type) + 
-                         "，得到：" + var_type_to_string(key_type_i),
+                         "，得到：" + var_type_to_string(item_key_ast->type),
                          line, __FILE__, __LINE__);
             return -1;
         }
-        
-        VarType value_type_i;
-        if (items[i].second->visit_expr(value_type_i) == -1) {
-            return -1;
+
+        std::shared_ptr<ASTNode> item_value_ast;
+        if (items[i].second->visit_expr(item_value_ast) == -1) {
+          return -1;
         }
-        
-        if (value_type_i != value_type) {
+
+        if (item_value_ast->type != value_type) {
             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                          "字典值类型不一致，期望：" + var_type_to_string(value_type) + 
-                         "，得到：" + var_type_to_string(value_type_i),
+                         "，得到：" + var_type_to_string(item_value_ast->type),
                          line, __FILE__, __LINE__);
             return -1;
         }
     }
     
-    result = VarType::DICT;
+    type = VarType::DICT;
+    self = shared_from_this();
     return 0;
 }
 

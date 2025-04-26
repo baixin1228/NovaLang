@@ -3,9 +3,14 @@
 #include <string>
 #include <iostream>
 
-class StructFieldAccess : public ASTNode {
-public:
-    std::shared_ptr<ASTNode> struct_expr;
+int access_field_offset(std::shared_ptr<ASTNode> &struct_expr,
+                        std::string field_name, size_t &field_offset,
+                        VarType &field_type);
+
+  class StructFieldAccess : public ASTNode {
+  public:
+    std::shared_ptr<ASTNode> struct_expr = nullptr;
+    std::string struct_signature;
     std::string field_name;
     Context &ctx;
 
@@ -15,16 +20,15 @@ public:
     }
 
     void print(int level) override {
-      VarType struct_type;
-      visit_expr(struct_type);
       std::cout
           << std::string(level * 2, ' ') << "StructFieldAccess: " << field_name
-          << " " << var_type_to_string(struct_type) << " [行 " << line << "]\n";
-      struct_expr->print(level + 1);
+          << " " << var_type_to_string(type) << " " << struct_signature << " [行 " << line << "]\n";
+      if (struct_expr)
+        struct_expr->print(level + 1);
     }
 
-    int visit_stmt(VarType &result) override;
-    int visit_expr(VarType &result) override;
+    int visit_stmt() override;
+    int visit_expr(std::shared_ptr<ASTNode> &self) override;
     int gencode_stmt() override;
     llvm::Value *gencode_expr(VarType expected_type) override;
 };

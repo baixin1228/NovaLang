@@ -3,35 +3,70 @@
 #include "ASTParser.h"
 #include "Common.h"
 
-int Variable::visit_stmt(VarType &result) {
+int Variable::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "变量引用不能作为语句使用", line, __FILE__, __LINE__);
     return -1;
 }
 
-int Variable::visit_expr(VarType &result) {
-    auto& var_info = lookup_var_info(name);
-    if (var_info.type == VarType::NONE) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                               "未定义的变量: " + name, line, __FILE__, __LINE__);
-        return -1;
+int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
+  auto ast_node = lookup_var(name, line);
+  if (ast_node) {
+    type = ast_node->type;
+    self = ast_node;
+    if (ast_node->type == VarType::NONE) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义变量类型: " + name,
+                    line, __FILE__, __LINE__);
+      return -1;
     }
-    result = var_info.type;
-    return 0;
+  } else {
+    ast_node = lookup_func(name);
+    if (ast_node) {
+      type = VarType::FUNCTION;
+      self = shared_from_this();
+    }
+  }
+
+  if (!ast_node) {
+    throw std::runtime_error("未定义的变量: " + name +
+                              " source:" + std::to_string(line) +
+                              " file:" + std::string(__FILE__) +
+                              " line:" + std::to_string(__LINE__));
+    return -1;
+  }
+  // print_backtrace();
+  // std::cout << "Variable::visit_expr: " << name << " type: " <<
+  // var_type_to_string(ast_node->type) << std::endl;
+  return 0;
 }
 
 int Variable::gencode_stmt() { return 0; }
 
 llvm::Value *Variable::gencode_expr(VarType expected_type) {
-  auto ptr = lookup_var_llvm_obj(name);
-  if (!ptr) {
+  auto var_node = lookup_var(name, line);
+  if (!var_node) {
+    var_node = lookup_func(name);
+    if (var_node) {
+      auto func_node = std::dynamic_pointer_cast<Function>(var_node);
+      if (func_node) {
+        if (func_node->reference_count == 0) {
+          ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数: " + name + "未完成类型推导",
+                        line, __FILE__, __LINE__);
+          return nullptr;
+        }
+        return func_node->llvm_obj;
+      }
+    }
+  }
+  if (!var_node) {
     throw std::runtime_error("未定义的变量: " + name +
                              " source:" + std::to_string(line) +
                              " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
     return nullptr;
   }
-  auto &var_info = lookup_var_info(name);
-  VarType type = var_info.type;
+  auto ptr = var_node->llvm_obj;
+  VarType type = var_node->type;
+  // std::cout << "Variable::gencode_expr: " << name << " type: " << var_type_to_string(type) << std::endl;
   switch (type) {
   case VarType::STRING: {
     auto memory_block_ptr_type =

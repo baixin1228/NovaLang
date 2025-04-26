@@ -112,6 +112,7 @@ set(AST_SOURCES
     AST/DictLiteral.cpp
     AST/ListLiteral.cpp
     AST/StructFieldAccess.cpp
+    AST/StructFieldAssign.cpp
 )
 
 # 设置 CodeGen 源文件

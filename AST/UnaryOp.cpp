@@ -1,23 +1,23 @@
 #include "UnaryOp.h"
 #include "Context.h"
 
-int UnaryOp::visit_stmt(VarType &result) {
+int UnaryOp::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "一元运算不能作为语句使用", line, __FILE__, __LINE__);
     return -1;
 }
 
-int UnaryOp::visit_expr(VarType &result) {
-    VarType operand_type;
-    int ret = expr->visit_expr(operand_type);
+int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
+    std::shared_ptr<ASTNode> operand_ast;
+    int ret = expr->visit_expr(operand_ast);
     if (ret == -1) {
         return -1;
     }
     if (op == "not") {
-        if (operand_type != VarType::BOOL) {
+        if (operand_ast->type != VarType::BOOL) {
             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                             "not 运算符需要 bool 类型，得到: " + var_type_to_string(operand_type), line, __FILE__, __LINE__);
+                             "not 运算符需要 bool 类型，得到: " + var_type_to_string(operand_ast->type), line, __FILE__, __LINE__);
         }
-        result = VarType::BOOL;
+        type = VarType::BOOL;
         return 0;
     }
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未知一元运算符: " + op, line, __FILE__, __LINE__);

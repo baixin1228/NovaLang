@@ -8,8 +8,7 @@ int TypeChecker::check()
 
   for (auto &stmt : stmts) {
     if (stmt) {
-      VarType result;
-      int ret = stmt->visit_stmt(result);
+      int ret = stmt->visit_stmt();
       if (ret == -1) {
         return -1;
       }

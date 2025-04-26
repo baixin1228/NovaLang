@@ -84,6 +84,10 @@ class ASTParser {
       return "TOK_GT";
     case TOK_GTEQ:
       return "TOK_GTEQ";
+    case TOK_LTEQ:
+      return "TOK_LTEQ";
+    case TOK_NEQ:
+      return "TOK_NEQ";
     case TOK_AND:
       return "TOK_AND";
     case TOK_OR:
@@ -122,6 +126,24 @@ class ASTParser {
       return "TOK_NEWLINE";
     case TOK_EOF:
       return "TOK_EOF";
+    case TOK_GLOBAL:
+      return "TOK_GLOBAL";
+    case TOK_DOT:
+      return "TOK_DOT";
+    case TOK_MODULO:
+      return "TOK_MODULO";
+    case TOK_EXPONENT:
+      return "TOK_EXPONENT";
+    case TOK_DIVEQ:
+      return "TOK_DIVEQ";
+    case TOK_CLASS:
+      return "TOK_CLASS";
+    case TOK_INIT:
+      return "TOK_INIT";
+    case TOK_INHERIT:
+      return "TOK_INHERIT";
+    case TOK_SUPER:
+      return "TOK_SUPER";
     default:
       return "UNKNOWN";
     }
@@ -133,6 +155,8 @@ public:
   int parse();
   std::shared_ptr<ASTNode> parse_stmt();
   std::shared_ptr<ASTNode> parse_function();
+  std::shared_ptr<ASTNode> parse_method(std::string class_name);
+  std::shared_ptr<ASTNode> parse_class();
   std::shared_ptr<ASTNode> parse_while();
   std::shared_ptr<ASTNode> parse_for();
   std::shared_ptr<ASTNode> parse_if();
@@ -149,6 +173,7 @@ public:
   std::shared_ptr<ASTNode> parse_struct_literal();
   std::shared_ptr<ASTNode> parse_dict_literal();
   std::shared_ptr<ASTNode> parse_list_literal();
+  std::shared_ptr<ASTNode> parse_call(std::string method_name, std::shared_ptr<ASTNode> last_expr, int line);
   std::shared_ptr<ASTNode> parse_assign_expr(std::vector<std::string>& ids);
   Token peek_next() const;
   void print_ast();

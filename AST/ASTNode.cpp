@@ -1,5 +1,7 @@
 #include "ASTNode.h"
 #include "Context.h"
+#include "Function.h"
+#include "StructLiteral.h"
 
 ASTNode::ASTNode(Context &ctx, int ln, bool is_scope)
     : line(ln), parent(nullptr), ctx(ctx), is_scope(is_scope) {}
@@ -7,70 +9,78 @@ ASTNode::ASTNode(Context &ctx, int ln, bool is_scope)
 void ASTNode::set_parent(ASTNode *p) { parent = p; }
 
 /* add variable to current scope or global scope */
-int ASTNode::add_var_info(const std::string &name, bool is_params) {
+int ASTNode::add_var(const std::string &name,
+                          std::shared_ptr<ASTNode> node, bool is_params) {
   // if it is global variable, set it in global scope
   if (is_global_var(name)) {
     if (is_params) {
-      throw std::runtime_error("global already exists: " + name +
-                               " source_line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
+#ifdef DEBUG
+      std::cout << "-- global already exists: " << name << " " << line << std::endl;
+#endif
+      return -1;
     }
-    return ctx.add_var_info(name, line);
+    return ctx.add_global_var(name, node);
   }
 
   if (is_scope) {
-    if (var_infos.find(name) != var_infos.end()) {
+    if (vars.find(name) != vars.end()) {
       return -1;
     }
-    var_infos[name] = {.line = line};
+    vars[name] = node;
+// #ifdef DEBUG
+//   std::cout << "-- add local var: " << name << " " << line << std::endl;
+// #endif
     return 0;
   }
 
   if (parent) {
-    return parent->add_var_info(name, is_params);
+    return parent->add_var(name, node, is_params);
   }
 
-  return ctx.add_var_info(name, line);
+  return ctx.add_global_var(name, node);
 }
 
-VarInfo& ASTNode::lookup_var_info(const std::string &name) {
+std::shared_ptr<ASTNode> ASTNode::lookup_var(const std::string &name, int p_line) {
   if (name.empty()) {
     throw std::runtime_error("variable name is empty: " + name +
                              " line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
   }
-
+  // std::cout << "-- lookup var: " << name << " " << p_line << std::endl;
   if (is_scope) {
-    auto info = var_infos.find(name);
-    if (info != var_infos.end()) {
+    auto info = vars.find(name);
+    if (info != vars.end()) {
+      // std::cout << "-- lookup local var: " << name << " " << p_line << " "
+      //           << info->second  << std::endl;
       return info->second;
     }
   }
   if (parent) {
-    return parent->lookup_var_info(name);
+    return parent->lookup_var(name, p_line);
   }
-  return ctx.lookup_var_info(name, line);
+  return ctx.lookup_global_var(name, p_line);
 }
 
-int ASTNode::_add_func_info(const std::string &name) {
+int ASTNode::_add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
   if (is_scope) {
-    func_infos[name] = {};
+    func_infos[name] = node;
     return 0;
   }
   if (parent) {
-    return parent->_add_func_info(name);
+    return parent->_add_func(name, node);
   }
 
-  return ctx.add_func_info(name);
+  return ctx.add_global_func(name, node);
 }
 
-int ASTNode::add_func_info(const std::string &name) {
+int ASTNode::add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
   if (parent) {
-    return parent->_add_func_info(name);
+    return parent->_add_func(name, node);
   }
 
-  return ctx.add_func_info(name);
+  return ctx.add_global_func(name, node);
 }
 
-FuncInfo& ASTNode::lookup_func_info(const std::string &name) {
+std::shared_ptr<ASTNode> ASTNode::lookup_func(const std::string &name) {
   if (is_scope) {
     auto info = func_infos.find(name);
     if (info != func_infos.end()) {
@@ -78,9 +88,89 @@ FuncInfo& ASTNode::lookup_func_info(const std::string &name) {
     }
   }
   if (parent) {
-    return parent->lookup_func_info(name);
+    return parent->lookup_func(name);
   }
-  return ctx.get_func_info(name);
+  return ctx.lookup_global_func(name);
+}
+
+int ASTNode::_add_struct_info(const std::string &name) {
+  if (is_scope) {
+    struct_infos[name] = {};
+#ifdef DEBUG
+  std::cout << "-- add local struct: " << name << " " << line << std::endl;
+#endif
+    return 0;
+  }
+  if (parent) {
+    return parent->add_struct_info(name);
+  }
+  return ctx.add_struct_info(name);
+}
+
+int ASTNode::add_struct_info(const std::string &name) {
+  if (parent) {
+    return parent->_add_struct_info(name);
+  }
+  return ctx.add_struct_info(name);
+}
+
+StructInfo& ASTNode::lookup_struct_info(const std::string &name) {
+  if (is_scope) {
+    auto info = struct_infos.find(name);
+    if (info != struct_infos.end()) {
+      return info->second;
+    }
+  }
+  if (parent) {
+    return parent->lookup_struct_info(name);
+  }
+  return ctx.get_struct_info(name);
+}
+
+ASTNode* ASTNode::lookup_ast_function(const std::string &name) {
+  if (auto ast_node_func = dynamic_cast<Function*>(this)) {
+    if (ast_node_func->name == name) {
+      return ast_node_func;
+    }
+  }
+  if (parent) {
+    return parent->lookup_ast_function(name);
+  }
+  auto ast_nodes = ctx.get_ast();
+  for (auto &node : ast_nodes) {
+    if (node.get() == this) {
+      break;
+    }
+    if (auto ast_node_func = dynamic_cast<Function*>(node.get())) {
+      if (ast_node_func->name == name) {
+        return ast_node_func;
+      }
+    }
+  }
+  return nullptr;
+}
+
+ASTNode* ASTNode::lookup_ast_struct(const std::string &name) {
+  if (auto ast_node_struct = dynamic_cast<StructLiteral*>(this)) {
+    if (ast_node_struct->name == name) {
+      return ast_node_struct;
+    }
+  }
+  if (parent) {
+    return parent->lookup_ast_struct(name);
+  }
+  auto ast_nodes = ctx.get_ast();
+  for (auto &node : ast_nodes) {
+    if (node.get() == this) {
+      break;
+    }
+    if (auto ast_node_struct = dynamic_cast<StructLiteral*>(node.get())) {
+      if (ast_node_struct->name == name) {
+        return ast_node_struct;
+      }
+    }
+  }
+  return nullptr;
 }
 
 void ASTNode::add_global_var(const std::string &name) {
@@ -131,12 +221,4 @@ std::string ASTNode::get_scope_path() const {
     curr = curr->parent;
   }
   return path;
-}
-
-void ASTNode::add_var_llvm_obj(const std::string &name, llvm::Value *value) {
-  lookup_var_info(name).llvm_obj = value;
-}
-
-llvm::Value *ASTNode::lookup_var_llvm_obj(const std::string &name) {
-  return lookup_var_info(name).llvm_obj;
 }

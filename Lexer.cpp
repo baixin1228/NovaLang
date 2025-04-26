@@ -1,7 +1,6 @@
 #include "Lexer.h"
 
-std::vector<Token> Lexer::tokenize() {
-    std::vector<Token> tokens;
+int Lexer::tokenize(std::vector<Token> &tokens) {
     while (pos < input.size()) {
         if (at_line_start) {
             current_indent = 0;
@@ -94,6 +93,9 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "else") tokens.emplace_back(TOK_ELSE, id, line);
             else if (id == "elif") tokens.emplace_back(TOK_ELIF, id, line);
             else if (id == "global") tokens.emplace_back(TOK_GLOBAL, id, line);
+            else if (id == "class") tokens.emplace_back(TOK_CLASS, id, line);
+            else if (id == "__init__") tokens.emplace_back(TOK_INIT, id, line);
+            else if (id == "super") tokens.emplace_back(TOK_SUPER, id, line);
             else tokens.emplace_back(TOK_ID, id, line);
             continue;
         }
@@ -287,7 +289,7 @@ std::vector<Token> Lexer::tokenize() {
         tokens.emplace_back(TOK_DEDENT, "", line);
     }
     tokens.emplace_back(TOK_EOF, "", line);
-    return tokens;
+    return 0;
 }
 
 void Lexer::print_tokens(const std::vector<Token>& tokens) {
@@ -359,6 +361,9 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_MODULO: return "TOK_MODULO";
         case TOK_NEQ: return "TOK_NEQ";
         case TOK_LTEQ: return "TOK_LTEQ";
+        case TOK_CLASS: return "TOK_CLASS";
+        case TOK_INIT: return "TOK_INIT";
+        case TOK_SUPER: return "TOK_SUPER";
         default: return "UNKNOWN";
     }
 }
