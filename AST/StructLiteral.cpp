@@ -68,7 +68,7 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
                 return -1;
             }
             if (struct_type == StructType::STRUCT && name.empty()) {
-              signature << "_" << generateTypeSignature(field_ast);
+              signature << "_" << name << "_" << generateTypeSignature(field_ast);
             }
         }
     }
@@ -95,16 +95,21 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   for (const auto &field : fields) {
     std::shared_ptr<ASTNode> field_ast;
     field.second->visit_expr(field_ast);
-    std::cout << "field_ast: " << field.first << " type: " << var_type_to_string(field_ast->type) << std::endl;
+    VarType field_type = field_ast->type;
+    if(field.second->type == VarType::FUNCTION) {
+        field_type = VarType::FUNCTION;
+    }
+
+    std::cout << "field_ast: " << field.first << " type: " << var_type_to_string(field_type) << std::endl;
     // 计算字段值所需空间
-    total_size += get_type_align(field_ast->type);
+    total_size += get_type_align(field_type);
 
     // 准备字段值
     llvm::Value *field_value = nullptr;
-    if (field.second->gencode_expr(field_ast->type, field_value) != 0) {
+    if (field.second->gencode_expr(field_type, field_value) != 0) {
       return -1;
     }
-    field_data.push_back({field.first, {field_ast->type, field_value}});
+    field_data.push_back({field.first, {field_type, field_value}});
   }
 
   // 使用nova_memory_alloc创建一个结构体对象，分配所需内存

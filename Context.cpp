@@ -81,24 +81,6 @@ std::shared_ptr<ASTNode> Context::lookup_global_func(const std::string &name) {
   return func_infos[name];
 }
 
-int Context::add_struct_info(const std::string &name) {
-  if (struct_infos.find(name) == struct_infos.end()) {
-    struct_infos[name] = {};
-#ifdef DEBUG
-    std::cout << "-- add global struct: " << name << std::endl;
-#endif
-    return 0;
-  }
-  return -1;
-}
-
-StructInfo& Context::get_struct_info(const std::string &name) {
-  if (struct_infos.find(name) == struct_infos.end()) {
-    return *new StructInfo{.line = 0, .name = name, .type = nullptr};
-  }
-  return struct_infos[name];
-}
-
 void Context::add_ast_node(std::shared_ptr<ASTNode> node) {
     ast.push_back(std::move(node));
 }

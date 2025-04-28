@@ -46,8 +46,6 @@ private:
   bool generate_debug_info;    // 新增：控制是否生成调试信息
 
   int generate_global_variable(Assign &assign);
-  int generate_function(Function &func);
-  void GenLocalVar(Assign &assign);
 public:
     explicit CodeGen(Context & ctx, bool debug = false);
     ~CodeGen();

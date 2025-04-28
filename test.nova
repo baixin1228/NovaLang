@@ -47,30 +47,39 @@ def leibniz_pi(n_terms):
         pi += tmp
         sign = sign * -1
 
-    print("teasdrm")
-    ss = "mem free test"
-    print(ss)
-    print("pi:", pi)
+    #ss = "mem free test"
+    #print(ss)
     print("pi:", pi)
     return 4 * pi
 
-n_terms = 1000000000
+n_terms = 100000000
 approx_pi = leibniz_pi(n_terms)
 print(approx_pi)
+print("test_f:")
 
 s = "Hello " + "Word"
-def func_loop(cc):
-    return {f = cc, h = leibniz_pi}
+def func_loop():
+    return {f = 1, h = 0}
 
-#struct1 = { a = 1, b = 2.11, c = func_loop}
-struct1 = { a = 1, b = 2.11}
+def func_loop2(cc):
+    return {f = cc, h = leibniz_pi, c = func_loop}
+
+struct1 = { a = 1, b = 2.11, c = func_loop2}
 struct2 = { a2 = struct1, b2 = 2.11}
 struct3 = { a3 = struct2, b3 = 2.11}
 struct1.b = 2.12
-#struct1.c(100)
-#print(struct1.c(100).h(100))
+struct1.c(100)
+print("test_f:", struct1.c(100).f)
+print("test_f:", struct1.c(100).c().f)
+#struct1.c(100).h(100)
+leibniz_pi(100)
+approx_pi = leibniz_pi(n_terms)
+print(approx_pi)
+print("test_f:")
+print("test_f:")
+print("test_h:", struct1.c(100).h(100))
 struct2.a2.b = 2.13
-#struct3.a3.a2.a = struct1.c(100).f
+struct3.a3.a2.a = struct1.c(100).f
 print(s, approx_pi, struct3.a3.a2.a, struct1.b)
 
 class aaa:

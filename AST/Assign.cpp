@@ -85,7 +85,6 @@ int Assign::gencode_stmt() {
                            " line:" + std::to_string(__LINE__));
   }
 
-  // GenLocalVar(*assign);
   auto ptr = var_node->llvm_obj;
   if (!ptr) {
     throw std::runtime_error(

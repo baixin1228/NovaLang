@@ -46,14 +46,17 @@ int StructFieldAccess::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int StructFieldAccess::gencode_stmt() { return 0; }
 
-int access_field_offset(std::shared_ptr<ASTNode> &struct_expr, std::string field_name, size_t &field_offset, VarType &field_type) {
+int access_field_offset(
+    std::shared_ptr<ASTNode> struct_node, std::string field_name,
+    std::shared_ptr<ASTNode> &field_value, size_t &field_offset,
+    VarType &field_type) {
   field_offset = 0;
   bool found_field = false;
 
   // Try to determine field offset and type
   // This is more complex for nested access, as we need to check at runtime
   std::shared_ptr<ASTNode> struct_var = nullptr;
-  struct_expr->visit_expr(struct_var);
+  struct_node->visit_expr(struct_var);
   if (struct_var) {
     auto *struct_lit = dynamic_cast<StructLiteral *>(struct_var.get());
     if (struct_lit) {
@@ -65,6 +68,7 @@ int access_field_offset(std::shared_ptr<ASTNode> &struct_expr, std::string field
         if (field.first == field_name) {
           found_field = true;
           field_type = field.second->type;
+          field.second->visit_expr(field_value);
           break;
         }
         field_offset += get_type_align(field.second->type);
@@ -105,7 +109,8 @@ int StructFieldAccess::gencode_expr(VarType expected_type, llvm::Value *&value) 
 
     size_t field_offset = 0;
     VarType field_type = VarType::NONE;
-    access_field_offset(struct_expr, field_name, field_offset, field_type);
+    std::shared_ptr<ASTNode> field_value;
+    access_field_offset(struct_expr, field_name, field_value, field_offset, field_type);
 
     std::cout << "StructFieldAccess::gencode_expr: " << field_name << " " << var_type_to_string(field_type) 
     << " offset: " << field_offset << std::endl;

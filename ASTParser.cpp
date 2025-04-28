@@ -99,112 +99,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         std::string id = current().value;
         int ln = current().line;
         consume(TOK_ID, __FILE__, __LINE__);
-        
-        // Create a Variable node for the initial object
-        auto object = std::make_shared<Variable>(ctx, id, ln);
-        
-        // Check for nested field access
-        std::vector<std::string> field_path;
-        while (current().type == TOK_DOT) {
-            consume(TOK_DOT, __FILE__, __LINE__);
-            
-            if (current().type != TOK_ID) {
-                ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
-                             "字段访问后必须是标识符，得到: " + token_type_to_string(current().type), 
-                             current().line, __FILE__, __LINE__);
-                return nullptr;
-            }
-            
-            std::string field_name = current().value;
-            field_path.push_back(field_name);
-            consume(TOK_ID, __FILE__, __LINE__);
-        }
-        
-        // If no field access, handle as a regular variable
-        if (field_path.empty()) {
-            if (current().type == TOK_ASSIGN) {
-                consume(TOK_ASSIGN, __FILE__, __LINE__);
-                
-                // If the next token is another ID and it's followed by assignment,
-                // we have a chained assignment
-                std::vector<std::string> ids = {id};
-                auto value = parse_assign_expr(ids);
-
-                CONSUME_NEW_LINE;
-
-                // Process the assignments in reverse order
-                auto result = std::move(value);
-                for (int i = ids.size() - 1; i >= 0; --i) {
-                    result = std::make_shared<Assign>(ctx, ids[i], std::move(result), ln);
-                }
-                
-                return result;
-            }
-            if (current().type == TOK_PLUSEQ) {
-                consume(TOK_PLUSEQ, __FILE__, __LINE__);
-                auto value = parse_expr();
-                CONSUME_NEW_LINE;
-                return std::make_shared<CompoundAssign>(ctx, id, "+=", std::move(value), ln);
-            }
-            if (current().type == TOK_MINUSEQ) {
-                consume(TOK_MINUSEQ, __FILE__, __LINE__);
-                auto value = parse_expr();
-                CONSUME_NEW_LINE;
-                return std::make_shared<CompoundAssign>(ctx, id, "-=", std::move(value), ln);
-            }
-            if (current().type == TOK_STAREQ) {
-                consume(TOK_STAREQ, __FILE__, __LINE__);
-                auto value = parse_expr();
-                CONSUME_NEW_LINE;
-                return std::make_shared<CompoundAssign>(ctx, id, "*=", std::move(value), ln);
-            }
-            if (current().type == TOK_SLASHEQ) {
-                consume(TOK_SLASHEQ, __FILE__, __LINE__);
-                auto value = parse_expr();
-                CONSUME_NEW_LINE;
-                return std::make_shared<CompoundAssign>(ctx, id, "/=", std::move(value), ln);
-            }
-            if (current().type == TOK_PLUSPLUS) {
-                consume(TOK_PLUSPLUS, __FILE__, __LINE__);
-                CONSUME_NEW_LINE;
-                return std::make_shared<Increment>(ctx, id, ln);
-            }
-            pos--;
-            return object;
-        }
-        
-        // Handle field access and nested field assignments
-        
-        // First, build the access path through the nested fields
-        std::shared_ptr<ASTNode> current_expr = std::move(object);
-        
-        // Process all fields except the last one (which might be an assignment target)
-        for (size_t i = 0; i < field_path.size() - 1; i++) {
-            current_expr = std::make_shared<StructFieldAccess>(ctx, std::move(current_expr), field_path[i], ln);
-        }
-        
-        // Check if the last field is an assignment target
-        if (current().type == TOK_ASSIGN) {
-            consume(TOK_ASSIGN, __FILE__, __LINE__);
-            auto value = parse_expr();
-            CONSUME_NEW_LINE;
-            
-            // Create a StructFieldAssign for the last field in the path
-            return std::make_shared<StructFieldAssign>(
-                ctx, field_path.back(), std::move(current_expr), std::move(value), ln);
-        }
-        
-        // If not an assignment, complete the field access chain
-        current_expr = std::make_shared<StructFieldAccess>(
-            ctx, std::move(current_expr), field_path.back(), ln);
-        
-        // Check if this field access is followed by a function call
-        if (current().type == TOK_LPAREN) {
-            // 调用parse_call，使用字段名作为函数名，current_expr作为前向表达式
-            return parse_call(field_path.back(), current_expr, ln);
-        }
-        
-        return current_expr;
+        return parse_variable_and_field_access(id, ln);
     }
     if (current().type == TOK_GLOBAL) {
         return parse_global();
@@ -975,5 +870,103 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
         StructType::CLASS,       // 类型为CLASS
         line
     );
+}
+
+std::shared_ptr<ASTNode> ASTParser::parse_variable_and_field_access(const std::string& id, int ln) {
+    // Initialize current_expr based on whether it's a function call or variable
+    std::shared_ptr<ASTNode> current_expr;
+    if (current().type == TOK_LPAREN) {
+        current_expr = parse_call(id, nullptr, ln);
+    } else {
+        current_expr = std::make_shared<Variable>(ctx, id, ln);
+    }
+    
+    // Keep processing while we see dots
+    while (current().type == TOK_DOT) {
+        consume(TOK_DOT, __FILE__, __LINE__);
+        
+        if (current().type != TOK_ID) {
+            ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                         "字段访问后必须是标识符，得到: " + token_type_to_string(current().type), 
+                         current().line, __FILE__, __LINE__);
+            return nullptr;
+        }
+        
+        std::string field_name = current().value;
+        consume(TOK_ID, __FILE__, __LINE__);
+        
+        // Check if this is a method call
+        if (current().type == TOK_LPAREN) {
+            current_expr = parse_call(field_name, current_expr, ln);
+        } else {
+            current_expr = std::make_shared<StructFieldAccess>(ctx, std::move(current_expr), field_name, ln);
+        }
+    }
+    
+    // Check if this is an assignment
+    if (current().type == TOK_ASSIGN) {
+        consume(TOK_ASSIGN, __FILE__, __LINE__);
+        auto value = parse_expr();
+        CONSUME_NEW_LINE;
+        
+        // If the current_expr is a StructFieldAccess, we need to create a StructFieldAssign
+        if (auto field_access = std::dynamic_pointer_cast<StructFieldAccess>(current_expr)) {
+            return std::make_shared<StructFieldAssign>(
+                ctx, 
+                field_access->field_name, 
+                field_access->struct_expr,
+                std::move(value), 
+                ln);
+        } else {
+            // If it's a simple variable, create a regular assignment
+            if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
+                return std::make_shared<Assign>(ctx, var->name, std::move(value), ln);
+            }
+        }
+    }
+    
+    // Handle compound assignments
+    if (current().type == TOK_PLUSEQ || current().type == TOK_MINUSEQ || 
+        current().type == TOK_STAREQ || current().type == TOK_SLASHEQ) {
+        std::string op;
+        switch (current().type) {
+            case TOK_PLUSEQ: op = "+="; break;
+            case TOK_MINUSEQ: op = "-="; break;
+            case TOK_STAREQ: op = "*="; break;
+            case TOK_SLASHEQ: op = "/="; break;
+            default: break;
+        }
+        consume(current().type, __FILE__, __LINE__);
+        auto value = parse_expr();
+        CONSUME_NEW_LINE;
+        
+        // Only allow compound assignments on simple variables for now
+        if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
+            return std::make_shared<CompoundAssign>(ctx, var->name, op, std::move(value), ln);
+        } else {
+            ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
+                         "复合赋值运算符只能用于简单变量",
+                         ln, __FILE__, __LINE__);
+            return nullptr;
+        }
+    }
+    
+    // Handle increment
+    if (current().type == TOK_PLUSPLUS) {
+        consume(TOK_PLUSPLUS, __FILE__, __LINE__);
+        CONSUME_NEW_LINE;
+        
+        // Only allow increment on simple variables for now
+        if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
+            return std::make_shared<Increment>(ctx, var->name, ln);
+        } else {
+            ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
+                         "自增运算符只能用于简单变量",
+                         ln, __FILE__, __LINE__);
+            return nullptr;
+        }
+    }
+    
+    return current_expr;
 }
 

@@ -2,12 +2,15 @@
 #include "ASTNode.h"
 #include <iostream>
 #include <vector>
+#include "Assign.h"
 
 class Function : public ASTNode {
 public:
     std::string name;
     std::shared_ptr<ASTNode> return_ast;
     uint32_t reference_count;
+
+    llvm::FunctionType *llvm_type;
     llvm::Function *llvm_obj;
     std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> params;
     std::vector<std::shared_ptr<ASTNode>> body;
@@ -58,6 +61,7 @@ public:
 
     int visit_stmt() override;
     int visit_expr(std::shared_ptr<ASTNode> &self) override;
+    void GenLocalVar(Assign &assign);
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&value) override;
 }; 

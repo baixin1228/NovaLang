@@ -30,8 +30,10 @@ public:
 
     int visit_stmt() override;
     int visit_expr(std::shared_ptr<ASTNode> &self) override;
-    int visit_func_expr(std::shared_ptr<ASTNode> &self);
-    int visit_class_expr(std::shared_ptr<ASTNode> &self);
+    int visit_func_expr(std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> ast_node);
+    int visit_struct_expr(std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &field_value);
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
+    int gencode_func_expr(VarType expected_type, llvm::Value *&ret_value);
+    int gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value);
 }; 

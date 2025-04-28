@@ -175,6 +175,7 @@ public:
   std::shared_ptr<ASTNode> parse_list_literal();
   std::shared_ptr<ASTNode> parse_call(std::string method_name, std::shared_ptr<ASTNode> last_expr, int line);
   std::shared_ptr<ASTNode> parse_assign_expr(std::vector<std::string>& ids);
+  std::shared_ptr<ASTNode> parse_variable_and_field_access(const std::string& id, int ln);
   Token peek_next() const;
   void print_ast();
 };

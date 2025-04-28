@@ -20,7 +20,6 @@ private:
 
   std::map<std::string, std::shared_ptr<ASTNode>> global_vars;
   std::map<std::string, std::shared_ptr<ASTNode>> func_infos;
-  std::map<std::string, StructInfo> struct_infos;
 
   std::vector<std::shared_ptr<ASTNode>> ast;
   std::map<std::string, std::shared_ptr<ASTNode>> global_structs;
@@ -42,9 +41,6 @@ public:
   int add_global_func(const std::string &name, std::shared_ptr<ASTNode> node);
   std::shared_ptr<ASTNode> lookup_global_func(const std::string &name);
   
-  int add_struct_info(const std::string &name);
-  StructInfo& get_struct_info(const std::string &name);
-
   // AST operation
   void add_ast_node(std::shared_ptr<ASTNode> node);
   std::vector<std::shared_ptr<ASTNode>> &get_ast();

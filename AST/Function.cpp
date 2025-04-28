@@ -6,6 +6,9 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include "StructLiteral.h"
+#include "If.h"
+#include "For.h"
+#include "While.h"
 
 // 辅助函数，从父节点获取类名
 std::string get_class_name_from_parent(ASTNode* parent) {
@@ -21,39 +24,6 @@ std::string get_class_name_from_parent(ASTNode* parent) {
 }
 
 int Function::visit_stmt() {
-  if (parent) {
-    if (auto class_node = dynamic_cast<StructLiteral*>(parent)) {
-      
-    }
-  }
-  
-  // // 如果是方法且是第一次处理
-  // if (is_method && reference_count == 0) {
-  //   // 注册方法信息
-  //   add_func_info(name);
-  //   auto func_info = lookup_func_info(name);
-  //   if (!func_info) {
-  //     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
-  //                   __FILE__, __LINE__);
-  //     return -1;
-  //   }
-
-  //   // 如果是构造函数，添加特殊标记
-  //   if (is_init) {
-  //     func_info->get().is_constructor = true;
-  //     // 获取父节点的类名
-  //     func_info->get().class_name = get_class_name_from_parent(parent);
-  //   }
-
-  //   // 设置参数类型
-  //   for (auto &param : params) {
-  //     func_info->get().param_types.push_back(VarType::NONE);
-  //   }
-    
-  //   result = VarType::NONE;
-  //   return 0;
-  // }
-  
     // std::cout << "function visit_stmt: " << name << " " << line << std::endl;
   // 标准函数处理逻辑
   if (reference_count == 1) {
@@ -97,78 +67,199 @@ int Function::visit_expr(std::shared_ptr<ASTNode> &self) {
     return -1;
 }
 
+void Function::GenLocalVar(Assign &assign) {
+  if (!assign.need_create || assign.get_scope_depth() <= 0) {
+    return;
+  }
+
+  auto var_node = assign.lookup_var(assign.var, assign.line);
+  VarType type = var_node->type;
+  llvm::Type *ty;
+  switch (type) {
+  case VarType::INT:
+    ty = ctx.builder->getInt64Ty();
+    break;
+  case VarType::FLOAT:
+    ty = ctx.builder->getDoubleTy();
+    break;
+  case VarType::BOOL:
+    ty = ctx.builder->getInt1Ty();
+    break;
+  case VarType::STRING:
+  case VarType::STRUCT:
+  case VarType::DICT:
+  case VarType::LIST:
+    ty = llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+    break;
+  default:
+    ty = ctx.builder->getVoidTy();
+    break;
+  }
+  auto ptr = ctx.builder->CreateAlloca(ty, nullptr, assign.var);
+  ptr->setAlignment(llvm::Align(get_type_align(type)));
+  var_node->llvm_obj = ptr;
+}
+
 int Function::gencode_stmt() {
-    // 判断是否是方法(通过parent)
-    bool is_method = parent != nullptr;
-  
-    // 如果是方法，采用特殊处理
-    if (is_method) {
-        // 获取父节点的类名
-        std::string class_name = get_class_name_from_parent(parent);
-      
-        // 获取类类型
-        auto class_type = llvm::StructType::getTypeByName(*ctx.llvm_context, class_name);
-        if (!class_type) {
-            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                         "未找到类: " + class_name, line, __FILE__, __LINE__);
-            return -1;
-        }
-        
-        // 创建包含'self'作为第一个参数的函数签名
-        std::vector<llvm::Type*> param_types;
-        
-        // Self参数（指向类结构的指针）
-        param_types.push_back(llvm::PointerType::get(class_type, 0));
-        
-        // 添加其他参数
-        for (size_t i = 1; i < params.size(); i++) {
-            // 为简化起见，所有参数使用i64
-            // 在更完整的实现中，你会跟踪每个参数的类型
-            param_types.push_back(llvm::Type::getInt64Ty(*ctx.llvm_context));
-        }
-        
-        // 创建函数类型
-        auto return_type = llvm::Type::getVoidTy(*ctx.llvm_context);
-        auto function_type = llvm::FunctionType::get(return_type, param_types, false);
-        
-        // 创建函数
-        std::string method_full_name = class_name + "_" + name;
-        auto function = llvm::Function::Create(
-            function_type, llvm::Function::ExternalLinkage, method_full_name, ctx.module.get());
-        
-        // 设置参数名称
-        size_t idx = 0;
-        for (auto &arg : function->args()) {
-            if (idx == 0) {
-                arg.setName("self");
-            } else {
-                arg.setName(params[idx].first);
-            }
-            idx++;
-        }
-        
-        // 将函数存储在上下文中
-        ctx.current_function = function;
-        
-        // 为函数创建基本块
-        auto entry_block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", function);
-        ctx.builder->SetInsertPoint(entry_block);
-        
-        // 生成函数体代码
-        for (auto &stmt : body) {
-            int ret = stmt->gencode_stmt();
-            if (ret == -1) {
-                return -1;
-            }
-        }
-        
-        // 添加返回指令
-        ctx.builder->CreateRetVoid();
-        
-        return 0;
+  std::cout << "==== Generating function: " << name
+            << " ====" << std::endl;
+  auto ast_node = lookup_func(name);
+  if (!ast_node) {
+    throw std::runtime_error("未定义函数: " + name +
+                             " code:" + std::to_string(line) +
+                             " line:" + std::to_string(__LINE__));
+    return -1;
+  }
+
+    std::vector<llvm::Type*> llvm_param_types;
+    for (auto &type : params) {
+      switch (type.second->type) {
+      case VarType::INT:
+        llvm_param_types.push_back(ctx.builder->getInt64Ty());
+        break;
+      case VarType::FLOAT:
+        llvm_param_types.push_back(ctx.builder->getDoubleTy());
+        break;
+      case VarType::BOOL:
+        llvm_param_types.push_back(ctx.builder->getInt1Ty());
+        break;
+      default:
+        throw std::runtime_error(
+            "未知参数类型: " + var_type_to_string(type.second->type) +
+              " code:" + std::to_string(line) +
+            " line:" + std::to_string(__LINE__));
+        return -1;
+        break;
+      }
     }
-    
-    // 普通函数逻辑
+    llvm::Type* llvm_return_type;
+    switch (type) {
+      case VarType::INT:
+        llvm_return_type = ctx.builder->getInt64Ty();
+        break;
+      case VarType::FLOAT:
+        llvm_return_type = ctx.builder->getDoubleTy();
+        break;
+      case VarType::BOOL:
+        llvm_return_type = ctx.builder->getInt1Ty();
+        break;
+      case VarType::STRUCT:
+        llvm_return_type = llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+        break;
+      default:
+        llvm_return_type = ctx.builder->getVoidTy();
+        break;
+    }
+    auto func_ty = llvm::FunctionType::get(llvm_return_type, llvm_param_types, false);
+    auto llvm_func = llvm::Function::Create(func_ty, llvm::Function::ExternalLinkage, name, *ctx.module);
+    llvm_obj = llvm_func;
+    llvm_type = func_ty;
+
+    // 只有在需要生成调试信息时才创建调试信息
+    // if (generate_debug_info) {
+    //     auto dbg_func = dbg_builder->createFunction(
+    //         dbg_file,
+    //         func.name,
+    //         func.name,
+    //         dbg_file,
+    //         func.line,
+    //         dbg_builder->createSubroutineType(dbg_builder->getOrCreateTypeArray({})),
+    //         func.line,
+    //         llvm::DINode::FlagPrototyped,
+    //         llvm::DISubprogram::SPFlagDefinition
+    //     );
+    //     llvm_func->setSubprogram(dbg_func);
+
+    //     // 添加调试位置
+    //     auto debug_loc =
+    //         llvm::DILocation::get(*ctx.llvm_context, func.line, 0, dbg_func);
+    //     ctx.builder->SetCurrentDebugLocation(debug_loc);
+    // }
+
+    auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", llvm_func);
+    ctx.builder->SetInsertPoint(block);
+    ctx.current_function = llvm_func;
+
+    size_t i = 0;
+    for (auto& arg : llvm_func->args()) {
+        auto& param = params[i].first;
+        auto type = params[i].second->type;
+        if (type == VarType::NONE) {
+          throw std::runtime_error("未知参数类型: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+          return -1;
+        }
+
+        llvm::AllocaInst *alloc;
+        switch (type) {
+          case VarType::INT:
+            alloc = ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, param);     
+            alloc->setAlignment(llvm::Align(get_type_align(type)));
+            break;
+          case VarType::FLOAT:
+            alloc = ctx.builder->CreateAlloca(ctx.builder->getDoubleTy(), nullptr, param);
+            alloc->setAlignment(llvm::Align(get_type_align(type)));
+            break;
+          case VarType::BOOL:
+            alloc = ctx.builder->CreateAlloca(ctx.builder->getInt1Ty(), nullptr, param);
+            alloc->setAlignment(llvm::Align(get_type_align(type)));
+            break;
+          default:
+            break;
+        }
+
+        auto str = ctx.builder->CreateStore(&arg, alloc);
+        str->setAlignment(llvm::Align(get_type_align(type)));
+        auto param_node = lookup_var(param, line);
+        if (!param_node) {
+          throw std::runtime_error("未定义参数: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+          return -1;
+        }
+        param_node->llvm_obj = alloc;
+        ++i;
+    }
+
+    for (auto& stmt : body) {
+      if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+        GenLocalVar(*assign);
+      }
+      if (auto *iff = dynamic_cast<If *>(stmt.get())) {
+        for (auto &stmt : iff->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            GenLocalVar(*assign);
+          }
+        }
+      }
+      if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
+        for (auto &stmt : ffor->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            GenLocalVar(*assign);
+          }
+        }
+      }
+      if (auto *whl = dynamic_cast<While *>(stmt.get())) {
+        for (auto &stmt : whl->body) {
+          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+            GenLocalVar(*assign);
+          }
+        }
+      }
+      if (auto *func = dynamic_cast<Function *>(stmt.get())) {
+        if (func->gencode_stmt() == -1) {
+          return -1;
+        }
+      }
+    }
+
+    for (auto& stmt : body) {
+        if (stmt->gencode_stmt() == -1) {
+          return -1;
+        }
+    }
+
+    for (auto& param : params) {
+        // func.erase_llvm_symbol(param);
+    }
+    std::cout << "Generated function: " << name << std::endl;
     return 0;
 }
 

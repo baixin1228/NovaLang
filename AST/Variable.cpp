@@ -22,7 +22,7 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
     ast_node = lookup_func(name);
     if (ast_node) {
       type = VarType::FUNCTION;
-      self = shared_from_this();
+      self = ast_node;
     }
   }
 

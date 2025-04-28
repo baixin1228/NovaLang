@@ -77,7 +77,9 @@ int StructFieldAssign::gencode_stmt() {
 
   size_t field_offset = 0;
   VarType field_type = VarType::NONE;
-  access_field_offset(struct_expr, field_name, field_offset, field_type);
+  std::shared_ptr<ASTNode> field_value;
+  access_field_offset(struct_expr, field_name, field_value, field_offset,
+                      field_type);
 
   // Store field value based on type and offset
   llvm::Value *field_ptr_ptr = ctx.builder->CreateGEP(

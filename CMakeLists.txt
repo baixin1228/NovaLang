@@ -118,7 +118,6 @@ set(AST_SOURCES
 # 设置 CodeGen 源文件
 set(CODEGEN_SOURCES
     CodeGen/CodeGen.cpp
-    CodeGen/CodeGenCore.cpp
     CodeGen/RuntimeManager.cpp
 )
 

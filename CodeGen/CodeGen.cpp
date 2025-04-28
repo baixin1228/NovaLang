@@ -54,6 +54,62 @@ CodeGen::CodeGen(Context& ctx, bool debug)
     );
 }
 
+int CodeGen::generate_global_variable(Assign &assign) {
+  auto var_node = assign.lookup_var(assign.var, assign.line);
+  if (!var_node) {
+    throw std::runtime_error("未定义的变量: " + assign.var +
+                             " source:" + std::to_string(assign.line) +
+                             " file:" + std::string(__FILE__) +
+                             " line:" + std::to_string(__LINE__));
+    return -1;
+  }
+  VarType type = var_node->type;
+
+  if (assign.need_create) {
+    llvm::Type *ty;
+    switch (type) {
+    case VarType::INT:
+      ty = ctx.builder->getInt64Ty();
+      break;
+    case VarType::FLOAT:
+      ty = ctx.builder->getDoubleTy();
+      break;
+    case VarType::BOOL:
+      ty = ctx.builder->getInt1Ty();
+      break;
+    case VarType::STRING:
+    case VarType::STRUCT:
+    case VarType::DICT:
+    case VarType::LIST:
+      ty = llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+      break;
+    default:
+      ty = ctx.builder->getVoidTy();
+      break;
+    }
+
+    std::cout << "==== Generating global variable: " << assign.var
+              << "====" << std::endl;
+    // 创建全局变量
+    auto global_var =
+        new llvm::GlobalVariable(*ctx.module, ty,
+                                 false, // 是否为常量
+                                 llvm::GlobalValue::ExternalLinkage,
+                                 llvm::Constant::getNullValue(ty), // 初始值
+                                 assign.var);
+    global_var->setAlignment(llvm::Align(get_type_align(type)));
+
+    var_node->llvm_obj = global_var;
+  }
+
+  if (auto *assign_value = dynamic_cast<Assign *>(assign.value.get())) {
+    if (generate_global_variable(*assign_value) == -1) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
 int CodeGen::generate() {
     auto &stmts = ctx.get_ast();
     // 然后生成所有函数的定义
@@ -91,7 +147,7 @@ int CodeGen::generate() {
         }
       }
       if (auto *func = dynamic_cast<Function *>(stmt.get())) {
-        if (generate_function(*func) == -1) {
+        if (func->gencode_stmt() == -1) {
           return -1;
         }
       }

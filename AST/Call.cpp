@@ -1,220 +1,262 @@
 #include "Call.h"
 #include "Context.h"
 #include "Function.h"
-#include "Variable.h"
-#include "TypeChecker.h"
-#include <execinfo.h>
+#include "StructFieldAccess.h"
 #include "StructLiteral.h"
+#include "TypeChecker.h"
+#include "Variable.h"
+#include <execinfo.h>
 
 int Call::visit_stmt() {
-    std::shared_ptr<ASTNode> self_ast;
-    return visit_expr(self_ast);
+  std::shared_ptr<ASTNode> self_ast;
+  return visit_expr(self_ast);
 }
 
-int Call::visit_func_expr(std::shared_ptr<ASTNode> &self) {
-    // if (forward_expr) {
-    //     forward_expr->visit_stmt(result);
-    // }
+int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
+                          std::shared_ptr<ASTNode> ast_node) {
+  if (!ast_node) {
+    ast_node = lookup_func(name);
+  }
+  if (!ast_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
 
-    auto ast_node = lookup_func(name);
-    if (!ast_node) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line, __FILE__, __LINE__);
-        return -1;
+  auto func_node = dynamic_cast<Function *>(ast_node.get());
+  if (!func_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "调用非函数类型: " + name + " 得到类型：" +
+                      var_type_to_string(ast_node->type) + " 行：" +
+                      std::to_string(ast_node->line),
+                  line, __FILE__, __LINE__);
+    return -1;
+  }
+
+  if (args.size() != func_node->params.size()) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "参数数量不匹配: 期望 " +
+                      std::to_string(func_node->params.size()) + ", 得到 " +
+                      std::to_string(args.size()),
+                  line, __FILE__, __LINE__);
+    return -1;
+  }
+
+  // update params type
+  for (size_t i = 0; i < args.size(); i++) {
+    std::shared_ptr<ASTNode> arg_ast;
+    int ret = args[i]->visit_expr(arg_ast);
+    if (ret == -1) {
+      return -1;
     }
-    
-    auto func_node = dynamic_cast<Function*>(ast_node.get());
-    if (!func_node) {
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "调用非函数类型: " + name,
+    if (func_node->params[i].second &&
+        func_node->params[i].second->type != arg_ast->type) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "参数类型不匹配: 期望 " +
+                        var_type_to_string(func_node->params[i].second->type) +
+                        ", 得到 " + var_type_to_string(arg_ast->type),
                     line, __FILE__, __LINE__);
       return -1;
     }
+    func_node->params[i].second = arg_ast;
+  }
+  func_node->reference_count++;
+  func_node->visit_stmt();
 
-    if (args.size() != func_node->params.size()) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                    "参数数量不匹配: 期望 " + std::to_string(func_node->params.size()) +
-                        ", 得到 " + std::to_string(args.size()),
-                    line, __FILE__, __LINE__);
-        return -1;
-    }
-
-    // update params type
-    for (size_t i = 0; i < args.size(); i++) {
-        VarType arg_type;
-        std::shared_ptr<ASTNode> arg_ast;
-        int ret = args[i]->visit_expr(arg_ast);
-        if (ret == -1) {
-            return -1;
-        }
-        if (func_node->params[i].second && func_node->params[i].second->type != arg_type) {
-            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                        "参数类型不匹配: 期望 " +
-                            var_type_to_string(func_node->params[i].second->type) + ", 得到 " +
-                            var_type_to_string(arg_type),
-                        line, __FILE__, __LINE__);
-            return -1;
-        }
-        func_node->params[i].second = arg_ast;
-    }
-    auto func = lookup_ast_function(name);
-    if (auto func_node = dynamic_cast<Function*>(func)) {
-        func_node->reference_count++;
-        func_node->visit_stmt();
-    } else {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数ASTNode查询失败: " + name, line, __FILE__, __LINE__);
-        return -1;
-    }
-    self = func_node->return_ast;
-    type = func_node->type;
-    return 0;
+  self = func_node->return_ast;
+  type = func_node->type;
+  return 0;
 }
 
-// int Call::visit_class_expr(VarType &result, std::shared_ptr<ASTNode> &self) {
-//     auto struct_info = lookup_struct_info(name);
+int Call::visit_struct_expr(
+    std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &field_value) {
+  // Implementation for struct methods
 
-//     auto struct_ast = lookup_ast_struct(name);
-//     if (!struct_ast) {
-//         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "结构体ASTNode查询失败: " + name, line, __FILE__, __LINE__);
-//         return -1;
-//     }
-//     auto struct_node = dynamic_cast<StructLiteral*>(struct_ast);
+  // Evaluate the forward_expr to get the struct instance
+  std::shared_ptr<ASTNode> struct_instance;
+  int ret = forward_expr->visit_expr(struct_instance);
+  if (ret == -1) {
+    return -1;
+  }
 
-//     auto init_func_info = struct_node->init_method->lookup_func_info(struct_node->init_method->name);
-//     if (!init_func_info) {
-//         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "初始化方法查询失败: " + struct_node->init_method->name, line, __FILE__, __LINE__);
-//         return -1;
-//     }
+  if (!struct_instance) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无效的结构体实例", line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
 
-//     if (args.size() != init_func_info->get().param_types.size()) {
-//         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-//                     "参数数量不匹配: 期望 " + std::to_string(init_func_info->get().param_types.size()) +
-//                         ", 得到 " + std::to_string(args.size()),
-//                     line, __FILE__, __LINE__);
-//         return -1;
-//     }
+  auto struct_node = dynamic_cast<StructLiteral *>(struct_instance.get());
+  if (!struct_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无效的结构体实例", line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
 
-//     // update params type
-//     for (size_t i = 0; i < args.size(); i++) {
-//         VarType arg_type;
-//         std::shared_ptr<ASTNode> arg_ast;
-//         int ret = args[i]->visit_expr(arg_type, arg_ast);
-//         if (ret == -1) {
-//             return -1;
-//         }
-//         if (init_func_info->get().param_types[i] != VarType::NONE && init_func_info->get().param_types[i] != arg_type) {
-//             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-//                         "参数类型不匹配: 期望 " +
-//                             var_type_to_string(init_func_info->get().param_types[i]) + ", 得到 " +
-//                             var_type_to_string(arg_type),
-//                         line, __FILE__, __LINE__);
-//             return -1;
-//         }
-//         init_func_info->get().param_types[i] = arg_type;
-//     }
-//     struct_node->reference_count++;
-//     int ret = struct_node->visit_stmt(result);
-//     if (ret == -1) {
-//         return -1;
-//     }
-//     result = VarType::STRUCT;
-//     return 0;
-// }
+  size_t field_offset = 0;
+  VarType field_type = VarType::NONE;
+  
+  ret = access_field_offset(struct_instance, name, field_value, field_offset,
+                            field_type);
+  if (ret == -1) {
+    return -1;
+  }
+  return 0;
+}
 
 int Call::visit_expr(std::shared_ptr<ASTNode> &self_ast) {
-    // auto struct_info = lookup_struct_info(name);
-    // if (struct_info) {
-    //     return visit_struct_expr(result, self_ast);
-    // }
-    // std::cout << "call visit_expr: " << name << " " << line << std::endl;
-    return visit_func_expr(self_ast);
+  // Check if this is a method call on an object
+  if (forward_expr) {
+    std::shared_ptr<ASTNode> field_value;
+    int ret = visit_struct_expr(self_ast, field_value);
+    if (ret == -1) {
+      return -1;
+    }
+    return visit_func_expr(self_ast, field_value);
+  }
+
+  // Otherwise, treat it as a regular function call
+  return visit_func_expr(self_ast, nullptr);
 }
 
 int Call::gencode_stmt() {
-    llvm::Value* dummy_value = nullptr; // Dummy variable for the reference parameter
-    return gencode_expr(VarType::NONE, dummy_value);
+  llvm::Value *dummy_value =
+      nullptr; // Dummy variable for the reference parameter
+  return gencode_expr(VarType::NONE, dummy_value);
 }
 
-int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
-   
-    // // 处理对象实例化
-    // if (ctx.is_custom_type(name)) {
-    //     // 这是一个类的实例化
-    //     // 获取类型
-    //     auto class_type = llvm::StructType::getTypeByName(*ctx.llvm_context, name);
-    //     if (!class_type) {
-    //         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-    //                      "未找到类型: " + name, line, __FILE__, __LINE__);
-    //         return nullptr;
-    //     }
-        
-    //     // 为对象分配内存
-    //     auto memory_block_type = ctx.runtime_manager->getNovaMemoryBlockType();
-    //     auto malloc_func = ctx.runtime_manager->getRuntimeFunction("malloc");
-        
-    //     // 获取数据布局以计算大小
-    //     auto& data_layout = ctx.module->getDataLayout();
-        
-    //     // 计算类结构的大小
-    //     auto size_in_bytes = data_layout.getTypeAllocSize(class_type);
-        
-    //     std::vector<llvm::Value*> malloc_args = {
-    //         ctx.builder->getInt64(size_in_bytes)
-    //     };
-        
-    //     auto memory_block = ctx.builder->CreateCall(malloc_func, malloc_args, "obj_mem");
-        
-    //     // 转换为类指针
-    //     auto class_ptr = ctx.builder->CreateBitCast(
-    //         memory_block, 
-    //         llvm::PointerType::get(class_type, 0), 
-    //         "obj_ptr");
-        
-    //     // 如果存在，调用构造函数
-    //     std::string init_method = name + "_" + "__init__";
-    //     auto init_func = ctx.module->getFunction(init_method);
-        
-    //     if (init_func) {
-    //         // 准备构造函数的参数
-    //         std::vector<llvm::Value*> ctor_args;
-    //         ctor_args.push_back(class_ptr);  // 第一个参数是 'self'
-            
-    //         // 添加所有其他参数
-    //         for (auto &arg : args) {
-    //             ctor_args.push_back(arg->gencode_expr(VarType::NONE));
-    //         }
-            
-    //         // 调用构造函数
-    //         ctx.builder->CreateCall(init_func, ctor_args);
-    //     }
-        
-    //     return memory_block;  // 返回内存块
-    // }
-    
-    // 普通函数调用
-    auto func = lookup_func(name);
-    if (!func) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line, __FILE__, __LINE__);
-        return -1; // Return -1 on error
+int Call::gencode_func_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // 查找函数
+  auto ast_node = lookup_func(name);
+  if (!ast_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+
+  auto func_node = dynamic_cast<Function *>(ast_node.get());
+  if (!func_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  auto func_value = func_node->llvm_obj;
+  // 准备参数列表
+  std::vector<llvm::Value *> llvm_args;
+
+  // 处理所有参数
+  for (auto &arg : args) {
+    llvm::Value *arg_val = nullptr;
+    if (arg->gencode_expr(VarType::NONE, arg_val) == -1) {
+      return -1;
     }
-    auto func_node = dynamic_cast<Function*>(func.get());
+    if (!arg_val) {
+      ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL,
+                    "生成参数代码失败 for function call " + name, line,
+                    __FILE__, __LINE__);
+      return -1;
+    }
+    llvm_args.push_back(arg_val);
+  }
+  
+  // 调用函数
+  ret_value = ctx.builder->CreateCall(func_value, llvm_args, "call");
+  return 0;
+}
+
+int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
+    std::shared_ptr<ASTNode> field_value;
+    std::shared_ptr<ASTNode> self_ast;
+    int ret = visit_struct_expr(self_ast, field_value);
+    if (ret == -1) {
+      return -1;
+    }
+    auto func_node = dynamic_cast<Function *>(field_value.get());
     if (!func_node) {
-        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line, __FILE__, __LINE__);
-        return -1; // Return -1 on error
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
+                    __FILE__, __LINE__);
+      return -1;
     }
+    if(!func_node->llvm_type) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数未生成: " + name, line,
+                    __FILE__, __LINE__);
+      return -1;
+    }
+
+    // 获取结构体对象
+    llvm::Value *struct_val = nullptr;
+    if (forward_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法获取结构体实例", line,
+                  __FILE__, __LINE__);
+      return -1;
+    }
+    
+    // 获取结构体数据区域指针
+    auto data_ptr = ctx.builder->CreateCall(
+        ctx.runtime_manager->getRuntimeFunction("nova_memory_get_data"),
+        {struct_val});
+    auto byte_ptr = ctx.builder->CreateBitCast(
+        data_ptr, llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+    
+    // 获取结构体实例以获取字段偏移量
+    std::shared_ptr<ASTNode> struct_instance;
+    if (forward_expr->visit_expr(struct_instance) != 0 || !struct_instance) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无效的结构体实例", line,
+                  __FILE__, __LINE__);
+      return -1;
+    }
+    
+    // 计算字段偏移量
+    size_t field_offset = 0;
+    VarType field_type = VarType::NONE;
+    std::shared_ptr<ASTNode> method_node;
+    
+    // 获取字段偏移量
+    if (access_field_offset(struct_instance, name, method_node, field_offset, field_type) != 0) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, 
+                  "无法找到结构体字段: " + name, line,
+                  __FILE__, __LINE__);
+      return -1;
+    }
+    
+    // 计算字段指针位置
+    auto field_ptr = ctx.builder->CreateGEP(
+        ctx.builder->getInt8Ty(), byte_ptr,
+        llvm::ConstantInt::get(ctx.builder->getInt64Ty(), field_offset));
+    
+    // 将字段指针转换为函数指针类型
+    auto func_ptr_type = llvm::PointerType::get(func_node->llvm_type, 0);
+    auto func_ptr = ctx.builder->CreateBitCast(field_ptr, func_ptr_type);
+    
+    // 加载函数指针
+    func_ptr = ctx.builder->CreateLoad(func_ptr_type, func_ptr);
+
     std::vector<llvm::Value *> llvm_args;
+    // 处理所有参数
     for (auto &arg : args) {
-        llvm::Value* arg_val = nullptr;
-        // Pass expected type from function definition if available, otherwise NONE
-        // For now, passing NONE as param types are not fully checked/stored reliably during visit
-        if (arg->gencode_expr(VarType::NONE, arg_val) == -1) { // Use new signature and check return
-          return -1; // Propagate error
-        }
-        if (!arg_val) { // Check if value was successfully generated
-          ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL, "生成参数代码失败 for function call " + name, line, __FILE__, __LINE__);
-          return -1;
-        }
-        llvm_args.push_back(arg_val);
+      llvm::Value *arg_val = nullptr;
+      if (arg->gencode_expr(VarType::NONE, arg_val) == -1) {
+        return -1;
+      }
+      if (!arg_val) {
+        ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL,
+                      "生成参数代码失败 for function call " + name, line,
+                      __FILE__, __LINE__);
+        return -1;
+      }
+      llvm_args.push_back(arg_val);
     }
-    ret_value = ctx.builder->CreateCall(func_node->llvm_obj, llvm_args, "call");
-    // TODO: Handle expected_type conversion if necessary
-    return 0; // Return 0 on success
+    
+    // 调用函数指针
+    ret_value = ctx.builder->CreateCall(func_node->llvm_type, func_ptr, llvm_args, "struct_call");
+    return 0;
+ }
+
+int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // 如果存在前向表达式，则调用结构体方法
+  if (forward_expr) {
+    return gencode_struct_expr(expected_type, ret_value);
+  }
+  
+  // 否则调用普通函数
+  return gencode_func_expr(expected_type, ret_value);
 }

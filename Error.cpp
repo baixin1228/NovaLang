@@ -44,6 +44,8 @@ std::string ErrorHandler::get_error_string() const {
             case ErrorLevel::LEXICAL:
             case ErrorLevel::SYNTAX:
             case ErrorLevel::TYPE:
+            case ErrorLevel::RUNTIME:
+            case ErrorLevel::INTERNAL:
                 ss << level_str << " [源码行 " << err.source_line << "] [" 
                    << filename << ":" << err.call_line << "]: " 
                    << err.message << "\n";
