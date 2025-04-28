@@ -22,7 +22,7 @@ public:
     int visit_stmt() override;
     int visit_expr(std::shared_ptr<ASTNode> &self) override;
     int gencode_stmt() override;
-    llvm::Value *gencode_expr(VarType expected_type) override;
+    int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
     
 private:
     // 类型检查函数
@@ -36,19 +36,19 @@ private:
     bool is_string_concat(VarType left_type, VarType right_type);
     
     // 代码生成函数 - 每个函数现在接收expected_type参数以支持隐式类型转换
-    llvm::Value* gen_add(VarType expected_type);
-    llvm::Value* gen_subtract(VarType expected_type);
-    llvm::Value* gen_multiply(VarType expected_type);
-    llvm::Value* gen_divide(VarType expected_type);
-    llvm::Value* gen_floor_divide(VarType expected_type);
-    llvm::Value* gen_modulo(VarType expected_type);
-    llvm::Value* gen_power(VarType expected_type);
-    llvm::Value* gen_equal(VarType expected_type);
-    llvm::Value* gen_not_equal(VarType expected_type);
-    llvm::Value* gen_less_than(VarType expected_type);
-    llvm::Value* gen_greater_than(VarType expected_type);
-    llvm::Value* gen_greater_equal(VarType expected_type);
-    llvm::Value* gen_less_equal(VarType expected_type);
-    llvm::Value* gen_logical_and(VarType expected_type);
-    llvm::Value* gen_logical_or(VarType expected_type);
+    int gen_add(VarType expected_type, llvm::Value*& ret_value);
+    int gen_subtract(VarType expected_type, llvm::Value*& ret_value);
+    int gen_multiply(VarType expected_type, llvm::Value*& ret_value);
+    int gen_divide(VarType expected_type, llvm::Value*& ret_value);
+    int gen_floor_divide(VarType expected_type, llvm::Value*& ret_value);
+    int gen_modulo(VarType expected_type, llvm::Value*& ret_value);
+    int gen_power(VarType expected_type, llvm::Value*& ret_value);
+    int gen_equal(VarType expected_type, llvm::Value*& ret_value);
+    int gen_not_equal(VarType expected_type, llvm::Value*& ret_value);
+    int gen_less_than(VarType expected_type, llvm::Value*& ret_value);
+    int gen_greater_than(VarType expected_type, llvm::Value*& ret_value);
+    int gen_greater_equal(VarType expected_type, llvm::Value*& ret_value);
+    int gen_less_equal(VarType expected_type, llvm::Value*& ret_value);
+    int gen_logical_and(VarType expected_type, llvm::Value*& ret_value);
+    int gen_logical_or(VarType expected_type, llvm::Value*& ret_value);
 };

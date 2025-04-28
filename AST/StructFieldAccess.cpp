@@ -86,14 +86,14 @@ int access_field_offset(std::shared_ptr<ASTNode> &struct_expr, std::string field
   return 0;
 }
 
-llvm::Value *StructFieldAccess::gencode_expr(VarType expected_type) {
+int StructFieldAccess::gencode_expr(VarType expected_type, llvm::Value *&value) {
     // 获取结构体引用
-    auto struct_val = struct_expr->gencode_expr(VarType::STRUCT);
-    if (!struct_val) {
+    llvm::Value *struct_val = nullptr;
+    if (struct_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                      "无法访问无效结构体的字段 " + field_name,
                      line, __FILE__, __LINE__);
-        return nullptr;
+        return -1;
     }
 
     // 获取结构体数据区域指针
@@ -164,5 +164,6 @@ llvm::Value *StructFieldAccess::gencode_expr(VarType expected_type) {
             break;
     }
 
-    return field_val;
+    value = field_val;
+    return 0;
 }

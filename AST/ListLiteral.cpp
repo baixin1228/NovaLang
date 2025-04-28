@@ -44,10 +44,11 @@ int ListLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int ListLiteral::gencode_stmt() { return 0; }
 
-llvm::Value *ListLiteral::gencode_expr(VarType expected_type) {
-  // 列表实现将在后续完成，目前简单返回null指针
+int ListLiteral::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // 列表实现将在后续完成，目前简单返回null指针并报告错误
   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "列表字面量暂不支持代码生成",
                 line, __FILE__, __LINE__);
-  return llvm::ConstantPointerNull::get(
+  ret_value = llvm::ConstantPointerNull::get(
       llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+  return -1; // 返回-1表示生成失败
 }

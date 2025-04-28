@@ -83,7 +83,7 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int StructLiteral::gencode_stmt() { return 0; }
 
-llvm::Value *StructLiteral::gencode_expr(VarType expected_type) {
+int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   // 计算所需内存大小 - 仅需存储字段值
   size_t total_size = 0;
 
@@ -100,7 +100,10 @@ llvm::Value *StructLiteral::gencode_expr(VarType expected_type) {
     total_size += get_type_align(field_ast->type);
 
     // 准备字段值
-    auto field_value = field.second->gencode_expr(field_ast->type);
+    llvm::Value *field_value = nullptr;
+    if (field.second->gencode_expr(field_ast->type, field_value) != 0) {
+      return -1;
+    }
     field_data.push_back({field.first, {field_ast->type, field_value}});
   }
 
@@ -208,12 +211,13 @@ llvm::Value *StructLiteral::gencode_expr(VarType expected_type) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "不支持的结构体字段类型: " + var_type_to_string(field_type),
                     line, __FILE__, __LINE__);
-      break;
+      return -1;
     }
 
     // 更新偏移量
     offset += get_type_align(field_type);
   }
 
-  return struct_ptr;
+  value = struct_ptr;
+  return 0;
 }

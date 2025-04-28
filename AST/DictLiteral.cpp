@@ -71,10 +71,11 @@ int DictLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int DictLiteral::gencode_stmt() { return 0; }
 
-llvm::Value *DictLiteral::gencode_expr(VarType expected_type) {
-  // 字典实现将在后续完成，目前简单返回null指针
+int DictLiteral::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // 字典实现将在后续完成，目前简单返回null指针并报告错误
   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "字典字面量暂不支持代码生成",
                 line, __FILE__, __LINE__);
-  return llvm::ConstantPointerNull::get(
+  ret_value = llvm::ConstantPointerNull::get(
       llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+  return -1; // Indicate error as it's not supported
 }

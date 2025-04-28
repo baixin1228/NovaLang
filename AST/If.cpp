@@ -72,8 +72,15 @@ int If::gencode_stmt() {
           : (elif_bbs.push_back(
                  llvm::BasicBlock::Create(*ctx.llvm_context, "elif1", ctx.current_function)),
              elif_bbs.back());
-  auto cond = condition->gencode_expr(VarType::BOOL);
-  ctx.builder->CreateCondBr(cond, then_bb, next_bb);
+  llvm::Value* cond_val = nullptr;
+  if (condition->gencode_expr(VarType::BOOL, cond_val) == -1) {
+    return -1;
+  }
+  if (!cond_val) {
+      ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL, "生成 if 条件代码失败", line, __FILE__, __LINE__);
+      return -1;
+  }
+  ctx.builder->CreateCondBr(cond_val, then_bb, next_bb);
 
   ctx.builder->SetInsertPoint(then_bb);
   for (auto &stmt : body) {
@@ -86,7 +93,14 @@ int If::gencode_stmt() {
   // Elif 分支
   for (size_t i = 0; i < elifs.size(); ++i) {
     ctx.builder->SetInsertPoint(elif_bbs[i]);
-    auto elif_cond = elifs[i].first->gencode_expr(VarType::BOOL);
+    llvm::Value* elif_cond_val = nullptr;
+    if (elifs[i].first->gencode_expr(VarType::BOOL, elif_cond_val) == -1) {
+        return -1;
+    }
+    if (!elif_cond_val) {
+        ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL, "生成 elif 条件代码失败", line, __FILE__, __LINE__);
+        return -1;
+    }
     auto elif_body_bb = llvm::BasicBlock::Create(
         *ctx.llvm_context, "elif_body" + std::to_string(i + 1), ctx.current_function);
     auto next_elif_bb =
@@ -98,7 +112,7 @@ int If::gencode_stmt() {
             ? end_bb
             : (else_bb =
                    llvm::BasicBlock::Create(*ctx.llvm_context, "else", ctx.current_function));
-    ctx.builder->CreateCondBr(elif_cond, elif_body_bb, next_elif_bb);
+    ctx.builder->CreateCondBr(elif_cond_val, elif_body_bb, next_elif_bb);
 
     ctx.builder->SetInsertPoint(elif_body_bb);
     for (auto &stmt : elifs[i].second) {
@@ -122,6 +136,9 @@ int If::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *If::gencode_expr(VarType expected_type) {
-    return nullptr;
+int If::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+    // If statements don't produce a value.
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "if 语句不能作为表达式使用", line, __FILE__, __LINE__);
+    ret_value = nullptr;
+    return -1;
 }

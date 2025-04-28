@@ -16,6 +16,8 @@ int BoolLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int BoolLiteral::gencode_stmt() { return 0; }
 
-llvm::Value *BoolLiteral::gencode_expr(VarType expected_type) {
-  return ctx.builder->getInt1(value);
+int BoolLiteral::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  ret_value = ctx.builder->getInt1(value);
+  // TODO: Handle expected_type conversion if necessary (e.g., bool to int/float)
+  return 0; // Return 0 on success
 }

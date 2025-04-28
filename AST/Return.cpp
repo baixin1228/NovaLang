@@ -22,7 +22,11 @@ int Return::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int Return::gencode_stmt() {
   // 获取返回值
-  auto return_value = value->gencode_expr(VarType::NONE);
+  llvm::Value* return_value = nullptr;
+  if (value->gencode_expr(VarType::NONE, return_value) == -1) {
+    // 处理错误
+    return -1;
+  }
 
   // 如果返回值是字符串类型，增加引用计数
   std::shared_ptr<ASTNode> return_ast;
@@ -92,6 +96,9 @@ int Return::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *Return::gencode_expr(VarType expected_type) {
-    return nullptr;
+int Return::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+    // Return statements don't produce a value in expression context
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "return语句不能作为表达式使用", line, __FILE__, __LINE__);
+    ret_value = nullptr;
+    return -1;
 }

@@ -26,7 +26,12 @@ int Print::gencode_stmt() {
   // 遍历所有要打印的值
   for (const auto &expr : values) {
     std::shared_ptr<ASTNode> value_ast;
-    auto value = expr->gencode_expr(VarType::NONE);
+    llvm::Value* value = nullptr;
+    if (expr->gencode_expr(VarType::NONE, value) == -1) {
+      // 处理错误
+      return -1;
+    }
+    
     expr->visit_expr(value_ast);
 
     // 根据类型添加对应的格式化字符串
@@ -95,6 +100,9 @@ int Print::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *Print::gencode_expr(VarType expected_type) {
-    return nullptr;
+int Print::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+    // Print statements don't produce a value
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "print语句不能作为表达式使用", line, __FILE__, __LINE__);
+    ret_value = nullptr;
+    return -1;
 }

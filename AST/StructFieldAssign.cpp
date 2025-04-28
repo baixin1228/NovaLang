@@ -53,8 +53,8 @@ int StructFieldAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int StructFieldAssign::gencode_stmt() {
   // Get struct pointer - this could be a nested structure
-  auto struct_val = struct_expr->gencode_expr(VarType::STRUCT);
-  if (!struct_val) {
+  llvm::Value *struct_val = nullptr;
+  if (struct_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法获取结构体引用", line,
                   __FILE__, __LINE__);
     return -1;
@@ -63,7 +63,10 @@ int StructFieldAssign::gencode_stmt() {
   // Get the value
   std::shared_ptr<ASTNode> value_ast;
   value->visit_expr(value_ast);
-  auto value_val = value->gencode_expr(value_ast->type);
+  llvm::Value *value_val = nullptr;
+  if (value->gencode_expr(value_ast->type, value_val) != 0) {
+    return -1;
+  }
 
   // Get pointer to struct data area
   auto data_ptr = ctx.builder->CreateCall(
@@ -127,7 +130,7 @@ int StructFieldAssign::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *StructFieldAssign::gencode_expr(VarType expected_type) {
+int StructFieldAssign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
   // Return the value for expression context
-  return value->gencode_expr(expected_type);
+  return value->gencode_expr(expected_type, ret_value);
 }

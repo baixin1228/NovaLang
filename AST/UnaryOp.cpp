@@ -26,13 +26,18 @@ int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int UnaryOp::gencode_stmt() { return 0; }
 
-llvm::Value *UnaryOp::gencode_expr(VarType expected_type) {
-  auto expr = this->expr->gencode_expr(expected_type);
-  if (op == "not") {
-    return ctx.builder->CreateNot(expr, "not");
+int UnaryOp::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  llvm::Value *expr_val = nullptr;
+  if (expr->gencode_expr(expected_type, expr_val) != 0) {
+    return -1;
   }
-  throw std::runtime_error("未知一元运算符: " + op +
-                           " code:" + std::to_string(line) +
-                           " line:" + std::to_string(__LINE__));
-  return nullptr;
+  
+  if (op == "not") {
+    value = ctx.builder->CreateNot(expr_val, "not");
+    return 0;
+  }
+  
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未知一元运算符: " + op,
+                line, __FILE__, __LINE__);
+  return -1;
 }

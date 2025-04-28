@@ -54,6 +54,27 @@ int Increment::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *Increment::gencode_expr(VarType expected_type) {
-    return nullptr;
+int Increment::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  auto var_info = dynamic_cast<Variable*>(lookup_var(var, line).get());
+  if (!var_info) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
+    return -1;
+  }
+  
+  auto ptr = var_info->llvm_obj;
+  VarType type = var_info->type;
+  if (type != VarType::INT) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法对非整型变量递增: " + var, line, __FILE__, __LINE__);
+    return -1;
+  }
+  
+  auto old_val = ctx.builder->CreateLoad(ctx.builder->getInt64Ty(), ptr, var + "_old");
+  old_val->setAlignment(llvm::Align(get_type_align(type)));
+  auto new_val = ctx.builder->CreateAdd(old_val, ctx.builder->getInt64(1), var + "_inc");
+  auto str = ctx.builder->CreateStore(new_val, ptr);
+  str->setAlignment(llvm::Align(get_type_align(type)));
+  
+  // 自增表达式返回递增后的值
+  ret_value = new_val;
+  return 0;
 }

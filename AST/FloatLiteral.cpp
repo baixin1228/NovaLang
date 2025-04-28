@@ -15,6 +15,8 @@ int FloatLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int FloatLiteral::gencode_stmt() { return 0; }
 
-llvm::Value *FloatLiteral::gencode_expr(VarType expected_type) {
-    return llvm::ConstantFP::get(ctx.builder->getDoubleTy(), value);
+int FloatLiteral::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+    ret_value = llvm::ConstantFP::get(ctx.builder->getDoubleTy(), value);
+    // TODO: Handle expected_type conversion if necessary (e.g., float to int)
+    return 0; // Return 0 on success
 }

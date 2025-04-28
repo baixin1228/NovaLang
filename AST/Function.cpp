@@ -172,6 +172,7 @@ int Function::gencode_stmt() {
     return 0;
 }
 
-llvm::Value *Function::gencode_expr(VarType expected_type) {
-    return nullptr;
+int Function::gencode_expr(VarType expected_type, llvm::Value *&value) {
+    value = nullptr;
+    return 0;
 }

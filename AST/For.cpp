@@ -56,7 +56,11 @@ int For::gencode_stmt() {
   auto iter_val =
       ctx.builder->CreateLoad(ctx.builder->getInt64Ty(), iter_ptr, iterator->name + "_val");
   iter_val->setAlignment(llvm::Align(get_type_align(VarType::INT)));
-  auto end_val = end->gencode_expr(VarType::NONE);
+  llvm::Value* end_val = nullptr;
+  int ret = end->gencode_expr(VarType::NONE, end_val);
+  if (ret == -1) {
+    return -1;
+  }
   auto cond = ctx.builder->CreateICmpSLT(iter_val, end_val, "cmp");
   ctx.builder->CreateCondBr(cond, body_bb, exit_bb);
 
@@ -76,6 +80,7 @@ int For::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *For::gencode_expr(VarType expected_type) {
-    return nullptr;
+int For::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  value = nullptr;
+  return 0;
 }

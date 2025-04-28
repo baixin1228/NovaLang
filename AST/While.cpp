@@ -36,7 +36,12 @@ int While::gencode_stmt() {
 
   ctx.builder->CreateBr(loop_bb);
   ctx.builder->SetInsertPoint(loop_bb);
-  auto cond = condition->gencode_expr(VarType::NONE);
+  
+  llvm::Value *cond = nullptr;
+  if (condition->gencode_expr(VarType::BOOL, cond) != 0) {
+    return -1;
+  }
+  
   ctx.builder->CreateCondBr(cond, body_bb, exit_bb);
 
   ctx.builder->SetInsertPoint(body_bb);
@@ -51,6 +56,7 @@ int While::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *While::gencode_expr(VarType expected_type) {
-    return nullptr;
+int While::gencode_expr(VarType expected_type, llvm::Value *&value) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "while 循环不能作为表达式使用", line, __FILE__, __LINE__);
+    return -1;
 }

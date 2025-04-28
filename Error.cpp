@@ -23,6 +23,12 @@ std::string ErrorHandler::get_error_string() const {
             case ErrorLevel::TYPE:
                 level_str = "类型错误";
                 break;
+            case ErrorLevel::RUNTIME:
+                level_str = "运行时错误";
+                break;
+            case ErrorLevel::INTERNAL:
+                level_str = "内部错误";
+                break;
             case ErrorLevel::Other:
                 break;
         }

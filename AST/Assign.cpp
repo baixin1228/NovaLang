@@ -92,7 +92,11 @@ int Assign::gencode_stmt() {
         "未定义的变量: " + var + " code:" + std::to_string(line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
   }
-  auto llvm_value = value->gencode_expr(type);
+  llvm::Value* llvm_value = nullptr;
+  int ret = value->gencode_expr(type, llvm_value);
+  if (ret == -1) {
+    return -1;
+  }
 
   // 如果是STRING类型（nova_memory_block），调用引用计数增加函数
   if (type == VarType::STRING) {
@@ -114,6 +118,8 @@ int Assign::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *Assign::gencode_expr(VarType expected_type) {
-  return value->gencode_expr(expected_type);
+int Assign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // The assignment expression itself should return the assigned value.
+  // We get the value from the 'value' node.
+  return value->gencode_expr(expected_type, ret_value);
 }

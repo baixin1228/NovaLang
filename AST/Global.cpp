@@ -17,6 +17,7 @@ int Global::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int Global::gencode_stmt() { return 0; }
 
-llvm::Value *Global::gencode_expr(VarType expected_type) {
-    return nullptr;
+int Global::gencode_expr(VarType expected_type, llvm::Value *&value) {
+    value = nullptr;
+    return 0;
 }

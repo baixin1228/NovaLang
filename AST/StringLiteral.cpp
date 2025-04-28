@@ -99,14 +99,15 @@ int StringLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 int StringLiteral::gencode_stmt() { return 0; }
 
 std::map<std::string, llvm::Value *> string_pool;
-llvm::Value *StringLiteral::gencode_expr(VarType expected_type) {
+int StringLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   // 获取原始字符串作为key
   const std::string &str_key = get_raw_str();
 
   // 检查字符串池中是否已存在
   auto it = string_pool.find(str_key);
   if (it != string_pool.end()) {
-    return it->second; // 返回已存在的内存指针
+    value = it->second; // 返回已存在的内存指针
+    return 0;
   }
 
   // 获取Unicode字符串
@@ -149,5 +150,6 @@ llvm::Value *StringLiteral::gencode_expr(VarType expected_type) {
   // 将指针存入字符串池
   string_pool[str_key] = memory_block;
 
-  return memory_block;
+  value = memory_block;
+  return 0;
 }

@@ -129,11 +129,11 @@ int Call::visit_expr(std::shared_ptr<ASTNode> &self_ast) {
 }
 
 int Call::gencode_stmt() {
-    gencode_expr(VarType::NONE);
-    return 0;
+    llvm::Value* dummy_value = nullptr; // Dummy variable for the reference parameter
+    return gencode_expr(VarType::NONE, dummy_value);
 }
 
-llvm::Value *Call::gencode_expr(VarType expected_type) {
+int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
    
     // // 处理对象实例化
     // if (ctx.is_custom_type(name)) {
@@ -193,16 +193,28 @@ llvm::Value *Call::gencode_expr(VarType expected_type) {
     auto func = lookup_func(name);
     if (!func) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line, __FILE__, __LINE__);
-        return nullptr;
+        return -1; // Return -1 on error
     }
     auto func_node = dynamic_cast<Function*>(func.get());
     if (!func_node) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line, __FILE__, __LINE__);
-        return nullptr;
+        return -1; // Return -1 on error
     }
     std::vector<llvm::Value *> llvm_args;
     for (auto &arg : args) {
-        llvm_args.push_back(arg->gencode_expr(VarType::NONE));
+        llvm::Value* arg_val = nullptr;
+        // Pass expected type from function definition if available, otherwise NONE
+        // For now, passing NONE as param types are not fully checked/stored reliably during visit
+        if (arg->gencode_expr(VarType::NONE, arg_val) == -1) { // Use new signature and check return
+          return -1; // Propagate error
+        }
+        if (!arg_val) { // Check if value was successfully generated
+          ctx.add_error(ErrorHandler::ErrorLevel::INTERNAL, "生成参数代码失败 for function call " + name, line, __FILE__, __LINE__);
+          return -1;
+        }
+        llvm_args.push_back(arg_val);
     }
-    return ctx.builder->CreateCall(func_node->llvm_obj, llvm_args, "call");
+    ret_value = ctx.builder->CreateCall(func_node->llvm_obj, llvm_args, "call");
+    // TODO: Handle expected_type conversion if necessary
+    return 0; // Return 0 on success
 }

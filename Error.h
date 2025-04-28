@@ -15,6 +15,8 @@ public:
         LEXICAL,
         SYNTAX,
         TYPE,
+        INTERNAL,
+        RUNTIME,
         Other
     };
 

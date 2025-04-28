@@ -106,7 +106,11 @@ int CompoundAssign::gencode_stmt() {
   }
   auto old_val = ctx.builder->CreateLoad(llvm_type, ptr, var + "_old");
   old_val->setAlignment(llvm::Align(get_type_align(type)));
-  auto right_val = value->gencode_expr(type);
+  llvm::Value* right_val = nullptr;
+  int ret = value->gencode_expr(type, right_val);
+  if (ret == -1) {
+    return -1;
+  }
 
   llvm::Value *new_val;
   if (op == "+=") {
@@ -144,6 +148,14 @@ int CompoundAssign::gencode_stmt() {
   return 0;
 }
 
-llvm::Value *CompoundAssign::gencode_expr(VarType expected_type) {
-    return nullptr;
+int CompoundAssign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
+    // Compound assignment as an expression is not typically supported or returns void/null.
+    // If it should return the final assigned value, we need to generate the statement 
+    // and then load the value back.
+    // For now, let's return -1 indicating it's not a valid expression.
+    // Alternatively, return the result of gencode_stmt? But that returns int.
+    // Let's stick to not supporting it as an expression for now.
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "复合赋值不能作为表达式使用", line, __FILE__, __LINE__);
+    ret_value = nullptr;
+    return -1; 
 }
