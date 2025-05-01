@@ -8,29 +8,40 @@
 
 class Context;
 
-namespace llvm {
-    class Value;
-}
-
 class ASTNode;
+struct VarInfo {
+  int line;
+  std::shared_ptr<ASTNode> node;
+  llvm::Value *llvm_obj;
+};
+
+struct FuncInfo {
+  std::shared_ptr<ASTNode> node;
+  llvm::Function *llvm_func;
+};
+
+struct ClassInfo {
+  std::shared_ptr<ASTNode> node;
+  llvm::StructType *llvm_struct;
+};
 
 class ASTNode : public std::enable_shared_from_this<ASTNode> {
 protected:
   ASTNode *parent;
-  std::map<std::string, std::shared_ptr<ASTNode>> vars;
-  std::map<std::string, std::shared_ptr<ASTNode>> func_infos;
+  std::map<std::string, std::shared_ptr<VarInfo>> vars;
+  std::map<std::string, std::shared_ptr<FuncInfo>> funcs;
+  std::map<std::string, std::shared_ptr<ClassInfo>> structs;
   std::map<std::string, llvm::Value *> symbols;
   std::set<std::string> global_vars;
   Context &ctx;
   bool is_scope;
 
-  int _add_func(const std::string &name, std::shared_ptr<ASTNode> node);
-  int _add_struct_info(const std::string &name);
+  int _add_func(const std::string &name, std::shared_ptr<FuncInfo> node);
+  int _add_struct(const std::string &name, std::shared_ptr<ClassInfo> node);
 
 public:
   int line;
   VarType type;
-  llvm::Value *llvm_obj;
   ASTNode(Context &ctx, int ln, bool is_scope = false);
   virtual ~ASTNode() = default;
 
@@ -42,10 +53,12 @@ public:
   void set_parent(ASTNode *p);
 
   // scope related methods
-  int add_var(const std::string &name, std::shared_ptr<ASTNode> node, bool is_params = false);
-  std::shared_ptr<ASTNode> lookup_var(const std::string &name, int p_line);
-  int add_func(const std::string &name, std::shared_ptr<ASTNode> node);
-  std::shared_ptr<ASTNode> lookup_func(const std::string &name);
+  int add_var(const std::string &name, std::shared_ptr<VarInfo> node, bool is_params = false);
+  std::shared_ptr<VarInfo> lookup_var(const std::string &name, int p_line);
+  int add_func(const std::string &name, std::shared_ptr<FuncInfo> node);
+  std::shared_ptr<FuncInfo> lookup_func(const std::string &name);
+  int add_struct(const std::string &name, std::shared_ptr<ClassInfo> node);
+  std::shared_ptr<ClassInfo> lookup_struct(const std::string &name);
 
   // global variable related methods
   void add_global_var(const std::string &name);

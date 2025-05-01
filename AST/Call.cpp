@@ -1,6 +1,7 @@
 #include "Call.h"
 #include "Context.h"
 #include "Function.h"
+#include "If.h"
 #include "StructFieldAccess.h"
 #include "StructLiteral.h"
 #include "TypeChecker.h"
@@ -15,7 +16,13 @@ int Call::visit_stmt() {
 int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
                           std::shared_ptr<ASTNode> ast_node) {
   if (!ast_node) {
-    ast_node = lookup_func(name);
+    auto func_info = lookup_func(name);
+    if (!func_info) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                    __FILE__, __LINE__);
+      return -1;
+    }
+    ast_node = func_info->node;
   }
   if (!ast_node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
@@ -64,6 +71,11 @@ int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
   func_node->visit_stmt();
 
   self = func_node->return_ast;
+  if (self == nullptr) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
   type = func_node->type;
   return 0;
 }
@@ -126,20 +138,20 @@ int Call::gencode_stmt() {
 
 int Call::gencode_func_expr(VarType expected_type, llvm::Value *&ret_value) {
   // 查找函数
-  auto ast_node = lookup_func(name);
-  if (!ast_node) {
+  auto func_info = lookup_func(name);
+  if (!func_info) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
                   __FILE__, __LINE__);
     return -1;
   }
 
-  auto func_node = dynamic_cast<Function *>(ast_node.get());
+  auto func_node = dynamic_cast<Function *>(func_info->node.get());
   if (!func_node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
                   __FILE__, __LINE__);
     return -1;
   }
-  auto func_value = func_node->llvm_obj;
+  auto func_value = func_info->llvm_func;
   // 准备参数列表
   std::vector<llvm::Value *> llvm_args;
 

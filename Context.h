@@ -18,11 +18,11 @@ private:
   ErrorHandler errors;
   std::string source_filename;
 
-  std::map<std::string, std::shared_ptr<ASTNode>> global_vars;
-  std::map<std::string, std::shared_ptr<ASTNode>> func_infos;
+  std::map<std::string, std::shared_ptr<VarInfo>> global_vars;
+  std::map<std::string, std::shared_ptr<FuncInfo>> global_funcs;
+  std::map<std::string, std::shared_ptr<ClassInfo>> global_structs;
 
   std::vector<std::shared_ptr<ASTNode>> ast;
-  std::map<std::string, std::shared_ptr<ASTNode>> global_structs;
   // global struct definition
 public:
   Context() = default;
@@ -36,10 +36,12 @@ public:
   // Runtime manager
   std::shared_ptr<RuntimeManager> runtime_manager;
 
-  int add_global_var(const std::string &name, std::shared_ptr<ASTNode> node);
-  std::shared_ptr<ASTNode> lookup_global_var(const std::string &name, int line);
-  int add_global_func(const std::string &name, std::shared_ptr<ASTNode> node);
-  std::shared_ptr<ASTNode> lookup_global_func(const std::string &name);
+  int add_global_var(const std::string &name, std::shared_ptr<VarInfo> node);
+  std::shared_ptr<VarInfo> lookup_global_var(const std::string &name, int line);
+  int add_global_func(const std::string &name, std::shared_ptr<FuncInfo> node);
+  std::shared_ptr<FuncInfo> lookup_global_func(const std::string &name);
+  int add_global_struct(const std::string &name, std::shared_ptr<ClassInfo> node);
+  std::shared_ptr<ClassInfo> lookup_global_struct(const std::string &name);
   
   // AST operation
   void add_ast_node(std::shared_ptr<ASTNode> node);
@@ -58,10 +60,6 @@ public:
 
   // generate unique local variable name
   std::string generate_local_var_name(const std::string& original_name, const ASTNode* node) const;
-  
-  // global struct
-  void add_global_struct(const std::string& name, std::shared_ptr<ASTNode> node);
-  std::shared_ptr<ASTNode> lookup_global_struct(const std::string& name) const;
 
   // Get LLVM type from VarType
   llvm::Type* get_llvm_type(VarType type) const;

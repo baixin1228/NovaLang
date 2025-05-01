@@ -4,7 +4,7 @@
 
 class Return : public ASTNode {
 public:
-    std::shared_ptr<ASTNode> value;
+    std::shared_ptr<ASTNode> value = nullptr;
 
     Return(Context &ctx, std::shared_ptr<ASTNode> v, int ln)
         : ASTNode(ctx, ln), value(std::move(v)) {

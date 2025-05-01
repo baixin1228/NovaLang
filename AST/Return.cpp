@@ -14,6 +14,7 @@ int Return::visit_expr(std::shared_ptr<ASTNode> &self) {
     type = self->type;
     return ret;
   } else {
+    throw std::runtime_error("返回值为空: " + std::to_string(line) + " " + std::string(__FILE__) + " " + std::to_string(__LINE__));
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "返回值为空", line, __FILE__,
                   __LINE__);
     return -1;
@@ -54,7 +55,7 @@ int Return::gencode_stmt() {
           std::string var_name = allocaInst->getName().str();
           if (!var_name.empty()) {
             auto var_node = lookup_var(var_name, line);
-            VarType var_type = var_node->type;
+            VarType var_type = var_node->node->type;
 
             // 如果是字符串类型，需要减少引用计数
             if (var_type == VarType::STRING) {

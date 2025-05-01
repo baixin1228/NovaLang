@@ -23,22 +23,22 @@ private:
 
 public:
     std::string name;
-    int reference_count;
-    Function *init_method;
-    std::map<std::string, std::shared_ptr<ASTNode>> fields;     // 结构体变量/实例变量
-    std::vector<std::shared_ptr<ASTNode>> functions;            // 函数列表
-    std::map<std::string, std::shared_ptr<ASTNode>> attributes; // 类属性
-    StructType struct_type;                                     // 类型标识：结构体或类
+    int visit_count = 0;
+    int reference_count = 0;
+    Function *init_method = nullptr;
+    std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> fields;     // 结构体变量/实例变量
+    std::map<std::string, std::shared_ptr<ASTNode>> functions;  // 函数列表
+    std::vector<std::shared_ptr<ASTNode>> attributes; // 类属性
+    StructType struct_type;                 // 类型标识：结构体或类
 
     // 构造函数支持类名、函数列表和属性
     StructLiteral(Context &ctx, std::string name,
-                 std::map<std::string, std::shared_ptr<ASTNode>> f, 
+                 std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> f, 
                  std::vector<std::shared_ptr<ASTNode>> funcs,
-                 std::map<std::string, std::shared_ptr<ASTNode>> attrs,
+                 std::vector<std::shared_ptr<ASTNode>> attrs,
                  StructType struct_type, int ln)
         : ASTNode(ctx, ln), name(std::move(name)), fields(std::move(f)),
-          functions(std::move(funcs)), attributes(std::move(attrs)),
-          struct_type(struct_type) {
+          attributes(std::move(attrs)), struct_type(struct_type) {
         // 设置所有字段的父节点
         for (auto &field : fields) {
             if (field.second) {
@@ -46,16 +46,30 @@ public:
             }
         }
         // 设置所有函数的父节点
-        for (auto &func : functions) {
+        for (auto &func_ast : funcs) {
+            if (func_ast) {
+                func_ast->set_parent(this);
+            }
+            auto func = std::dynamic_pointer_cast<Function>(func_ast);
             if (func) {
-                func->set_parent(this);
+                functions[func->name] = func;
+            } else {
+                throw std::runtime_error("函数类型错误" + 
+                var_type_to_string(func_ast->type)  + 
+                " source_line:" + std::to_string(ln) + 
+                " file:" + std::string(__FILE__) + 
+                " line:" + std::to_string(__LINE__));
             }
         }
         // 设置所有属性的父节点
         for (auto &attr : attributes) {
-            if (attr.second) {
-                attr.second->set_parent(this);
+            if (attr) {
+                attr->set_parent(this);
             }
+        }
+        // 类类型需要设置为作用域
+        if (struct_type == StructType::CLASS) {
+          is_scope = true;
         }
     }
 
@@ -66,11 +80,11 @@ public:
         if (!attributes.empty()) {
             std::cout << std::string((level + 1) * 2, ' ') << "Attributes:\n";
             for (const auto& attr : attributes) {
-                std::cout << std::string((level + 2) * 2, ' ') << attr.first << ":\n";
-                if (attr.second) {
-                    attr.second->print(level + 3);
+                std::cout << ":\n";
+                if (attr) {
+                    attr->print(level + 2);
                 } else {
-                    std::cout << std::string((level + 3) * 2, ' ') << "null\n";
+                    std::cout << std::string((level + 2) * 2, ' ') << "null\n";
                 }
             }
         }
@@ -78,8 +92,8 @@ public:
         if (!functions.empty()) {
             std::cout << std::string((level + 1) * 2, ' ') << "Functions:\n";
             for (const auto& func : functions) {
-                if (func) {
-                    func->print(level + 2);
+                if (func.second) {
+                    func.second->print(level + 2);
                 }
             }
         }

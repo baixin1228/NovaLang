@@ -67,7 +67,8 @@ def func_loop2(cc):
 struct1 = { a = 1, b = 2.11, c = func_loop2}
 struct2 = { a2 = struct1, b2 = 2.11}
 struct3 = { a3 = struct2, b3 = 2.11}
-struct1.b = 2.12
+#ss1 = struct1
+#ss1.b = 2.12
 struct1.c(100)
 print("test_f:", struct1.c(100).f)
 print("test_f:", struct1.c(100).c().f)
@@ -82,11 +83,15 @@ struct2.a2.b = 2.13
 struct3.a3.a2.a = struct1.c(100).f
 print(s, approx_pi, struct3.a3.a2.a, struct1.b)
 
-class aaa:
-    def aa(self):
-        c = 0
-        print(c)
+#class AAA:
+#    aaa_b = 123
+#    def aa(self):
+#        c = 0
+#        print(c)
 
+#print(AAA.aaa_b)
+#aaa = AAA
+#print(aaa.aaa_b)
 #class bbb:
 #    def bb(self):
 #        return aaa()

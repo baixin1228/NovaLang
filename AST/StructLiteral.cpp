@@ -1,87 +1,123 @@
 #include "StructLiteral.h"
-#include "TypeChecker.h"
-#include "Common.h"
-#include "IntLiteral.h"
-#include "FloatLiteral.h"
 #include "BoolLiteral.h"
+#include "Common.h"
+#include "FloatLiteral.h"
+#include "IntLiteral.h"
 #include "StringLiteral.h"
+#include "TypeChecker.h"
 #include <sstream>
 
 // 为结构体字段生成类型签名
-std::string StructLiteral::generateTypeSignature(const std::shared_ptr<ASTNode>& node) const {
-    if (!node) return "null";
-    
-    // 根据节点的类型生成签名
-    switch (node->type) {
-        case VarType::INT:
-            return "i64";
-        case VarType::FLOAT:
-            return "f64";
-        case VarType::BOOL:
-            return "i1";
-        case VarType::STRING:
-            return "string";
-        case VarType::STRUCT:
-            // 对于结构体类型，使用其名称作为签名
-            if (auto structLit = dynamic_cast<StructLiteral*>(node.get())) {
-                if (structLit->struct_type == StructType::CLASS) {
-                    return structLit->name;
-                } else {
-                    if (structLit->name.length() > 7) {
-                        return structLit->name.substr(7);
-                    } else {
-                      return structLit->name;
-                    }
-                }
-            }
-            return "struct";
-        case VarType::DICT:
-            return "dict";
-        case VarType::LIST:
-            return "list";
-        case VarType::FUNCTION:
-            // 对于函数类型，我们使用特定前缀来标识
-            if (auto funcNode = dynamic_cast<Function*>(node.get())) {
-                // 如果可以获取函数名称，使用名称作为函数签名的一部分
-                return "func_" + funcNode->name;
-            }
-            return "func";
-        default:
-            return "unknown";
+std::string StructLiteral::generateTypeSignature(
+    const std::shared_ptr<ASTNode> &node) const {
+  if (!node)
+    return "null";
+
+  // 根据节点的类型生成签名
+  switch (node->type) {
+  case VarType::INT:
+    return "i64";
+  case VarType::FLOAT:
+    return "f64";
+  case VarType::BOOL:
+    return "i1";
+  case VarType::STRING:
+    return "string";
+  case VarType::STRUCT:
+    // 对于结构体类型，使用其名称作为签名
+    if (auto structLit = dynamic_cast<StructLiteral *>(node.get())) {
+      if (structLit->struct_type == StructType::CLASS) {
+        return structLit->name;
+      } else {
+        if (structLit->name.length() > 7) {
+          return structLit->name.substr(7);
+        } else {
+          return structLit->name;
+        }
+      }
     }
+    return "struct";
+  case VarType::DICT:
+    return "dict";
+  case VarType::LIST:
+    return "list";
+  case VarType::FUNCTION:
+    // 对于函数类型，我们使用特定前缀来标识
+    if (auto funcNode = dynamic_cast<Function *>(node.get())) {
+      // 如果可以获取函数名称，使用名称作为函数签名的一部分
+      return "func_" + funcNode->name;
+    }
+    return "func";
+  default:
+    return "unknown";
+  }
 }
 
 int StructLiteral::visit_stmt() {
-    type = VarType::STRUCT;
-    return 0;
+  std::shared_ptr<ASTNode> self;
+  visit_expr(self);
+  return 0;
 }
 
 int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
-    // 遍历所有字段，确保每个字段的值都是有效的表达式，并执行类型推导
+  // 遍历所有字段，确保每个字段的值都是有效的表达式，并执行类型推导
+  if (visit_count == 0) {
     std::stringstream signature;
     signature << "struct";
 
-    for (auto& field : fields) {
-        if (field.second) {
-            std::shared_ptr<ASTNode> field_ast;
-            if (field.second->visit_expr(field_ast) == -1) {
-                return -1;
-            }
-            if (struct_type == StructType::STRUCT && name.empty()) {
-              signature << "_" << name << "_" << generateTypeSignature(field_ast);
-            }
+    for (auto &field : fields) {
+      if (field.second) {
+        std::shared_ptr<ASTNode> field_result;
+        if (field.second->visit_expr(field_result) == -1) {
+          return -1;
         }
+        if (struct_type == StructType::STRUCT && name.empty()) {
+          signature << "_" << field.first << "_"
+                    << generateTypeSignature(field.second);
+        }
+      }
     }
-    name = signature.str();
+    
+    for (auto attr : attributes) {
+      if (attr) {
+        if (attr->visit_stmt() == -1) {
+          return -1;
+        }
+      }
+    }
     if (struct_type == StructType::STRUCT) {
-      ctx.add_global_struct(name, shared_from_this());
+      name = signature.str();
+      type = VarType::STRUCT;
+    } else {
+      type = VarType::CLASS;
     }
-    type = VarType::STRUCT;
-    self = shared_from_this();
-    return 0;
+    std::cout << "==== Visit struct: " << name
+              << " visit_count: " << visit_count << " ====" << std::endl;
+    auto struct_info = std::make_shared<ClassInfo>();
+    struct_info->node = shared_from_this();
+    add_struct(name, struct_info);
+  }
+  visit_count++;
+  self = shared_from_this();
+  return 0;
 }
-
-int StructLiteral::gencode_stmt() { return 0; }
+// for (auto &func : cls->functions) {
+//   if (func.second->gencode_stmt() == -1) {
+//     return -1;
+//   }
+// }
+int StructLiteral::gencode_stmt() {
+  if (struct_type == StructType::CLASS) {
+    for (auto attr : attributes) {
+      if (attr) {
+        if (attr->gencode_stmt() == -1) {
+          return -1;
+        }
+      }
+    }
+  }
+  return 0;
+}
 
 int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   // 计算所需内存大小 - 仅需存储字段值
@@ -96,11 +132,12 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
     std::shared_ptr<ASTNode> field_ast;
     field.second->visit_expr(field_ast);
     VarType field_type = field_ast->type;
-    if(field.second->type == VarType::FUNCTION) {
-        field_type = VarType::FUNCTION;
+    if (field.second->type == VarType::FUNCTION) {
+      field_type = VarType::FUNCTION;
     }
 
-    std::cout << "field_ast: " << field.first << " type: " << var_type_to_string(field_type) << std::endl;
+    std::cout << "field_ast: " << field.first
+              << " type: " << var_type_to_string(field_type) << std::endl;
     // 计算字段值所需空间
     total_size += get_type_align(field_type);
 
@@ -176,17 +213,17 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
       auto value_ptr_ptr = ctx.builder->CreateGEP(
           ctx.builder->getInt8Ty(), byte_ptr,
           llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
-      
+
       // 将函数指针转换为通用指针类型
       auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr, llvm::PointerType::get(
+          value_ptr_ptr,
+          llvm::PointerType::get(
               llvm::PointerType::get(ctx.builder->getInt8Ty(), 0), 0));
-      
+
       // 如果function_value是函数指针，需要进行适当的转换
       auto func_ptr = ctx.builder->CreateBitCast(
-          field_value, 
-          llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
-      
+          field_value, llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+
       // 存储函数指针
       ctx.builder->CreateStore(func_ptr, value_ptr);
       break;
@@ -199,10 +236,11 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
           ctx.builder->getInt8Ty(), byte_ptr,
           llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
       auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr, llvm::PointerType::get(
-                             llvm::PointerType::get(
-                                 ctx.runtime_manager->getNovaMemoryBlockType(), 0),
-                             0));
+          value_ptr_ptr,
+          llvm::PointerType::get(
+              llvm::PointerType::get(
+                  ctx.runtime_manager->getNovaMemoryBlockType(), 0),
+              0));
 
       ctx.builder->CreateStore(field_value, value_ptr);
 

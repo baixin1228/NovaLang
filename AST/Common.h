@@ -20,6 +20,8 @@ enum class VarType {
   DICT,
   LIST,
   FUNCTION,
+  CLASS,
+  INSTANCE,
 };
 
 std::string var_type_to_string(VarType type);

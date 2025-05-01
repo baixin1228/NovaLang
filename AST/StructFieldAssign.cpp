@@ -25,7 +25,10 @@ int StructFieldAssign::visit_stmt() {
     return -1;
   }
 
-  auto field = struct_ast->fields.find(field_name);
+  auto field = std::find_if(struct_ast->fields.begin(), struct_ast->fields.end(),
+                            [&](const std::pair<std::string, std::shared_ptr<ASTNode>>& pair) {
+                              return pair.first == field_name;
+                            });
   if (field == struct_ast->fields.end()) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                   "未定义的结构体字段: " + field_name, line, __FILE__,

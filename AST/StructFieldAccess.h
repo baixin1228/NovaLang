@@ -1,5 +1,6 @@
 #pragma once
 #include "ASTNode.h"
+#include "StructLiteral.h"
 #include <iostream>
 #include <string>
 
@@ -11,6 +12,7 @@ int access_field_offset(std::shared_ptr<ASTNode> struct_node,
 class StructFieldAccess : public ASTNode {
 public:
   std::shared_ptr<ASTNode> struct_expr = nullptr;
+  StructType struct_type = StructType::STRUCT;
   std::string struct_signature;
   std::string field_name;
   Context &ctx;
@@ -32,7 +34,13 @@ public:
   }
 
   int visit_stmt() override;
+  int visit_struct_expr(std::shared_ptr<ASTNode> &self,
+                        StructLiteral *struct_lit);
+  int visit_class_expr(std::shared_ptr<ASTNode> &self,
+                       StructLiteral *struct_lit);
   int visit_expr(std::shared_ptr<ASTNode> &self) override;
   int gencode_stmt() override;
   int gencode_expr(VarType expected_type, llvm::Value *&value) override;
+  int gencode_struct_expr(VarType expected_type, llvm::Value *&value);
+  int gencode_class_expr(VarType expected_type, llvm::Value *&value);
 };

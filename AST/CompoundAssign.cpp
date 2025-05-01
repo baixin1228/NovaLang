@@ -15,18 +15,18 @@ int CompoundAssign::visit_stmt() {
         return -1;
     }
 
-    auto var_node = lookup_var(var, line);
-    if (var_node->type == VarType::NONE) {
+    auto var_info = lookup_var(var, line);
+    if (var_info->node->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
 
-    if (var_node->type != value_ast->type &&
-        !(var_node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
+    if (var_info->node->type != value_ast->type &&
+        !(var_info->node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                     "变量：" + var +
                         " 类型不匹配，得到的类型: " + var_type_to_string(value_ast->type) +
-                        " 期望类型是：" + var_type_to_string(var_node->type),
+                        " 期望类型是：" + var_type_to_string(var_info->node->type),
                     line, __FILE__, __LINE__);
       return -1;
     }
@@ -41,30 +41,30 @@ int CompoundAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
         return -1;
     }
 
-    auto var_node = lookup_var(var, line);
-    if (var_node->type == VarType::NONE) {
+    auto var_info = lookup_var(var, line);
+    if (var_info->node->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + var, line, __FILE__, __LINE__);
         return -1;
     }
 
-    if (var_node->type != value_ast->type &&
-        !(var_node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
+    if (var_info->node->type != value_ast->type &&
+        !(var_info->node->type == VarType::FLOAT && value_ast->type == VarType::INT)) {
       ctx.add_error(
           ErrorHandler::ErrorLevel::TYPE,
-          "类型不匹配: " + var + " 是 " + var_type_to_string(var_node->type) +
+          "类型不匹配: " + var + " 是 " + var_type_to_string(var_info->node->type) +
               " 类型，但赋值表达式是 " + var_type_to_string(value_ast->type) + " 类型",
           line, __FILE__, __LINE__);
       return -1;
     }
 
     self = shared_from_this();
-    type = var_node->type;
+    type = var_info->node->type;
     return 0;
 }
 
 int CompoundAssign::gencode_stmt() {
-  auto var_node = lookup_var(var, line);
-  VarType type = var_node->type;
+  auto var_info = lookup_var(var, line);
+  VarType type = var_info->node->type;
   if (type == VarType::NONE) {
     throw std::runtime_error("未定义的变量: " + var +
                              " source:" + std::to_string(line) +
@@ -79,7 +79,7 @@ int CompoundAssign::gencode_stmt() {
         std::to_string(line) + " line:" + std::to_string(__LINE__));
   }
 
-  auto ptr = var_node->llvm_obj;
+  auto ptr = var_info->llvm_obj;
   if (!ptr) {
     throw std::runtime_error("未定义的变量: " + var +
                              " source:" + std::to_string(line) +

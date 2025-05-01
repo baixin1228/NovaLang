@@ -22,6 +22,10 @@ std::string var_type_to_string(VarType type) {
     return "function";
   case VarType::VOID:
     return "void";
+  case VarType::CLASS:
+    return "class";
+  case VarType::INSTANCE:
+    return "instance";
   case VarType::NONE:
     return "none";
   }
@@ -39,7 +43,8 @@ uint32_t get_type_align(VarType type) {
   case VarType::STRUCT:
   case VarType::DICT:
   case VarType::LIST:
-  case VarType::FUNCTION:  // 函数指针也是指针类型，使用与其他指针类型相同的对齐值
+  case VarType::FUNCTION:
+  case VarType::INSTANCE:
     return 8; // Pointer alignment
   default:
     std::cerr << "Unknown type: " << var_type_to_string(type) << std::endl;

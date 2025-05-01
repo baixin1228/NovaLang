@@ -9,69 +9,63 @@ int Variable::visit_stmt() {
 }
 
 int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
-  auto ast_node = lookup_var(name, line);
-  if (ast_node) {
-    type = ast_node->type;
-    self = ast_node;
-    if (ast_node->type == VarType::NONE) {
+  auto var_info = lookup_var(name, line);
+  if (var_info) {
+    // if (auto var_node = std::dynamic_pointer_cast<Variable>(var_info)) {
+      // var_node->visit_expr(self);
+      // type = self->type;
+    // } else {
+      type = var_info->node->type;
+      self = var_info->node;
+    // }
+    if (var_info->node->type == VarType::NONE) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义变量类型: " + name,
                     line, __FILE__, __LINE__);
       return -1;
     }
-  } else {
-    ast_node = lookup_func(name);
-    if (ast_node) {
+  } 
+  std::shared_ptr<FuncInfo> func_info = nullptr;
+  if(!var_info) {
+    func_info = lookup_func(name);
+    if (func_info) {
       type = VarType::FUNCTION;
-      self = ast_node;
+      self = func_info->node;
+    }
+  }
+  std::shared_ptr<ClassInfo> struct_info = nullptr;
+  if (!func_info) {
+    struct_info = lookup_struct(name);
+    if (struct_info) {
+      type = struct_info->node->type;
+      self = struct_info->node;
     }
   }
 
-  if (!ast_node) {
+  if (!var_info && !func_info && !struct_info) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + name, line,
+                  __FILE__, __LINE__);
     throw std::runtime_error("未定义的变量: " + name +
                               " source:" + std::to_string(line) +
                               " file:" + std::string(__FILE__) +
                               " line:" + std::to_string(__LINE__));
     return -1;
   }
-  // print_backtrace();
-  // std::cout << "Variable::visit_expr: " << name << " type: " <<
-  // var_type_to_string(ast_node->type) << std::endl;
+    // print_backtrace();
+  std::cout << "Variable::visit_expr: " << name << std::endl;
   return 0;
 }
 
 int Variable::gencode_stmt() { return 0; }
 
-int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
-  auto var_node = lookup_var(name, line);
-  if (!var_node) {
-    var_node = lookup_func(name);
-    if (var_node) {
-      auto func_node = std::dynamic_pointer_cast<Function>(var_node);
-      if (func_node) {
-        if (func_node->reference_count == 0) {
-          ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数: " + name + "未完成类型推导",
-                        line, __FILE__, __LINE__);
-          return -1;
-        }
-        value = func_node->llvm_obj;
-        return 0;
-      }
-    }
-  }
-  if (!var_node) {
-    throw std::runtime_error("未定义的变量: " + name +
-                             " source:" + std::to_string(line) +
-                             " file:" + std::string(__FILE__) +
-                             " line:" + std::to_string(__LINE__));
-    return -1;
-  }
+int Variable::gencode_var_expr(VarType expected_type, llvm::Value *&value, std::shared_ptr<VarInfo> var_node) {
   auto ptr = var_node->llvm_obj;
-  VarType type = var_node->type;
-  // std::cout << "Variable::gencode_expr: " << name << " type: " << var_type_to_string(type) << std::endl;
+  VarType type = var_node->node->type;
+  // std::cout << "Variable::gencode_expr: " << name << " type: " <<
+  // var_type_to_string(type) << std::endl;
   switch (type) {
   case VarType::STRING: {
-    auto memory_block_ptr_type =
-        llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+    auto memory_block_ptr_type = llvm::PointerType::get(
+        ctx.runtime_manager->getNovaMemoryBlockType(), 0);
     auto load =
         ctx.builder->CreateLoad(memory_block_ptr_type, ptr, name + "_load");
     load->setAlignment(llvm::Align(get_type_align(type)));
@@ -86,21 +80,24 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
       // 隐式类型转换
       value = ctx.builder->CreateSIToFP(load, ctx.builder->getDoubleTy());
       return 0;
-    } else if (expected_type != VarType::NONE && expected_type == VarType::BOOL) {
+    } else if (expected_type != VarType::NONE &&
+               expected_type == VarType::BOOL) {
       // 隐式类型转换，0 为 False，非 0 为 True
-      value = ctx.builder->CreateICmpNE(load, llvm::ConstantInt::get(ctx.builder->getInt64Ty(), 0));
+      value = ctx.builder->CreateICmpNE(
+          load, llvm::ConstantInt::get(ctx.builder->getInt64Ty(), 0));
       return 0;
     }
     value = load;
     return 0;
   }
   case VarType::FLOAT: {
-    auto load =
-        ctx.builder->CreateLoad(ctx.builder->getDoubleTy(), ptr, name + "_load");
+    auto load = ctx.builder->CreateLoad(ctx.builder->getDoubleTy(), ptr,
+                                        name + "_load");
     load->setAlignment(llvm::Align(get_type_align(type)));
     if (expected_type != VarType::NONE && expected_type == VarType::BOOL) {
       // 隐式类型转换，0.0 为 False，非 0.0 为 True
-      value = ctx.builder->CreateFCmpUNE(load, llvm::ConstantFP::get(ctx.builder->getDoubleTy(), 0.0));
+      value = ctx.builder->CreateFCmpUNE(
+          load, llvm::ConstantFP::get(ctx.builder->getDoubleTy(), 0.0));
       return 0;
     }
     value = load;
@@ -115,8 +112,8 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
   }
   case VarType::STRUCT: {
     // 对于结构体变量，加载结构体指针
-    auto memory_block_ptr_type =
-        llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+    auto memory_block_ptr_type = llvm::PointerType::get(
+        ctx.runtime_manager->getNovaMemoryBlockType(), 0);
     auto load =
         ctx.builder->CreateLoad(memory_block_ptr_type, ptr, name + "_load");
     load->setAlignment(llvm::Align(get_type_align(type)));
@@ -126,8 +123,8 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
   case VarType::DICT:
   case VarType::LIST: {
     // 其他复合类型，加载内存块指针
-    auto memory_block_ptr_type =
-        llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+    auto memory_block_ptr_type = llvm::PointerType::get(
+        ctx.runtime_manager->getNovaMemoryBlockType(), 0);
     auto load =
         ctx.builder->CreateLoad(memory_block_ptr_type, ptr, name + "_load");
     load->setAlignment(llvm::Align(get_type_align(type)));
@@ -135,9 +132,62 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
     return 0;
   }
   default:
-    throw std::runtime_error("加载数据失败，未知变量类型: " + name +
-                             " code:" + std::to_string(line) + " file:" +
-                             __FILE__ + " line:" + std::to_string(__LINE__));
+    throw std::runtime_error("加载数据失败，未知变量类型: " + name + " code:" +
+                             std::to_string(line) + " file:" + __FILE__ +
+                             " line:" + std::to_string(__LINE__));
     return -1;
   }
+}
+
+int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  auto var_info = lookup_var(name, line);
+  if (!var_info) {
+    auto func_info = lookup_func(name);
+    if (func_info) {
+      auto func_node = std::dynamic_pointer_cast<Function>(func_info->node);
+      if (func_node) {
+        if (func_node->reference_count == 0) {
+          ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数: " + name + "未完成类型推导",
+                        line, __FILE__, __LINE__);
+          return -1;
+        }
+        value = func_info->llvm_func;
+        return 0;
+      }
+    }
+  }
+  if (!var_info) {
+    auto struct_info = lookup_struct(name);
+    if (struct_info) {
+      auto struct_node = std::dynamic_pointer_cast<StructLiteral>(struct_info->node);
+      if (struct_node) {
+        if (struct_node->struct_type == StructType::CLASS) {
+          // if (struct_node->reference_count == 0) {
+          //   ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+          //                 "类: " + name + "未完成类型推导", line, __FILE__,
+          //                 __LINE__);
+          //   return -1;
+          // }
+        } else {
+          if (struct_node->reference_count == 0) {
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                          "结构体: " + name + "未完成类型推导", line, __FILE__,
+                          __LINE__);
+            return -1;
+          }
+        }
+
+        // value = struct_node->llvm_obj;
+        return 0;
+      }
+    }
+  }
+  if (!var_info) {
+    throw std::runtime_error("未定义的变量: " + name +
+                             " source:" + std::to_string(line) +
+                             " file:" + std::string(__FILE__) +
+                             " line:" + std::to_string(__LINE__));
+    return -1;
+  }
+  return gencode_var_expr(expected_type, value, var_info);
 }

@@ -10,24 +10,10 @@
 #include "For.h"
 #include "While.h"
 
-// 辅助函数，从父节点获取类名
-std::string get_class_name_from_parent(ASTNode* parent) {
-    if (!parent) {
-        return "unknown";
-    }
-    
-    if (auto class_node = dynamic_cast<StructLiteral*>(parent)) {
-        return class_node->name;
-    }
-    
-    return "unknown";
-}
-
 int Function::visit_stmt() {
-    // std::cout << "function visit_stmt: " << name << " " << line << std::endl;
   // 标准函数处理逻辑
   if (reference_count == 1) {
-    // std::cout << "function visit_stmt 1: " << name << " " << line << std::endl;
+    std::cout << "function visit_stmt 1: " << name << " line:" << line << std::endl;
 
     // set param type
     for (auto &param : params) {
@@ -35,7 +21,13 @@ int Function::visit_stmt() {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未推导参数类型: " + param.first, line, __FILE__, __LINE__);
         return -1;
       }
-      add_var(param.first, param.second, true);
+      std::cout << "==== Generating add param: " << param.first
+                << " line:" << param.second->line << "====" << std::endl;
+
+      auto var_info = std::make_shared<VarInfo>();
+      var_info->line = line;
+      var_info->node = param.second;
+      add_var(param.first, var_info, true);
     }
 
     // process function body
@@ -50,13 +42,26 @@ int Function::visit_stmt() {
         type = stmt_node->type; // last return decide return type
       }
     }
-
+    if (return_ast == nullptr) {
+      throw std::runtime_error("函数没有返回值: " + name + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值", line, __FILE__, __LINE__);
+      return -1;
+    }
     return 0;
   } else {
-    // std::cout << "function visit_stmt 0: " << name << " " << line << std::endl;
+    std::cout << "function visit_stmt 0: " << name << " line:" << line << std::endl;
     // 首次注册函数
     if (reference_count == 0) {
-        add_func(name, shared_from_this());
+      auto func_name = name;
+      if (parent) {
+        auto cls = dynamic_cast<StructLiteral*>(parent);
+        if (cls->struct_type == StructType::CLASS) {
+          func_name = cls->name + "." + name;
+        }
+      }
+      auto func_info = std::make_shared<FuncInfo>();
+      func_info->node = shared_from_this();
+      add_func(func_name, func_info);
     }
     return 0;
   }
@@ -72,8 +77,8 @@ void Function::GenLocalVar(Assign &assign) {
     return;
   }
 
-  auto var_node = assign.lookup_var(assign.var, assign.line);
-  VarType type = var_node->type;
+  auto var_info = assign.lookup_var(assign.var, assign.line);
+  VarType type = var_info->node->type;
   llvm::Type *ty;
   switch (type) {
   case VarType::INT:
@@ -97,14 +102,14 @@ void Function::GenLocalVar(Assign &assign) {
   }
   auto ptr = ctx.builder->CreateAlloca(ty, nullptr, assign.var);
   ptr->setAlignment(llvm::Align(get_type_align(type)));
-  var_node->llvm_obj = ptr;
+  var_info->llvm_obj = ptr;
 }
 
 int Function::gencode_stmt() {
   std::cout << "==== Generating function: " << name
             << " ====" << std::endl;
-  auto ast_node = lookup_func(name);
-  if (!ast_node) {
+  auto func_info = lookup_func(name);
+  if (!func_info) {
     throw std::runtime_error("未定义函数: " + name +
                              " code:" + std::to_string(line) +
                              " line:" + std::to_string(__LINE__));
@@ -152,7 +157,7 @@ int Function::gencode_stmt() {
     }
     auto func_ty = llvm::FunctionType::get(llvm_return_type, llvm_param_types, false);
     auto llvm_func = llvm::Function::Create(func_ty, llvm::Function::ExternalLinkage, name, *ctx.module);
-    llvm_obj = llvm_func;
+    func_info->llvm_func = llvm_func;
     llvm_type = func_ty;
 
     // 只有在需要生成调试信息时才创建调试信息
@@ -209,37 +214,39 @@ int Function::gencode_stmt() {
 
         auto str = ctx.builder->CreateStore(&arg, alloc);
         str->setAlignment(llvm::Align(get_type_align(type)));
-        auto param_node = lookup_var(param, line);
-        if (!param_node) {
+        auto param_info = lookup_var(param, line);
+        if (!param_info) {
           throw std::runtime_error("未定义参数: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
           return -1;
         }
-        param_node->llvm_obj = alloc;
+        std::cout << "==== Generating params variable: " << param
+                  << " line:" << params[i].second->line << " ====" << std::endl;
+        param_info->llvm_obj = alloc;
         ++i;
     }
 
     for (auto& stmt : body) {
       if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-        GenLocalVar(*assign);
+        assign->gencode_var();
       }
       if (auto *iff = dynamic_cast<If *>(stmt.get())) {
         for (auto &stmt : iff->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            GenLocalVar(*assign);
+            assign->gencode_var();
           }
         }
       }
       if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
         for (auto &stmt : ffor->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            GenLocalVar(*assign);
+            assign->gencode_var();
           }
         }
       }
       if (auto *whl = dynamic_cast<While *>(stmt.get())) {
         for (auto &stmt : whl->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            GenLocalVar(*assign);
+            assign->gencode_var();
           }
         }
       }

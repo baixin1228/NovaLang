@@ -595,7 +595,7 @@ Token ASTParser::peek_next() const {
 std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
     int ln = current().line;
     consume(TOK_LBRACE, __FILE__, __LINE__);
-    std::map<std::string, std::shared_ptr<ASTNode>> fields;
+    std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> fields;
     
     // 不再处理空结构体，因为这已经在parse_primary中处理了
     
@@ -614,7 +614,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
     if (!field_value) {
         return nullptr;
     }
-    fields[field_name] = std::move(field_value);
+    fields.emplace_back(field_name, std::move(field_value));
     
     // 解析剩余字段
     while (current().type == TOK_COMMA) {
@@ -639,14 +639,14 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
         if (!field_value) {
             return nullptr;
         }
-        fields[field_name] = std::move(field_value);
+        fields.emplace_back(field_name, std::move(field_value));
     }
     
     consume(TOK_RBRACE, __FILE__, __LINE__);
     
     // 创建结构体字面量，对于普通结构体，函数和属性为空
     std::vector<std::shared_ptr<ASTNode>> functions;
-    std::map<std::string, std::shared_ptr<ASTNode>> attributes;
+    std::vector<std::shared_ptr<ASTNode>> attributes;
     
     // 使用空名称和STRUCT类型
     return std::make_shared<StructLiteral>(
@@ -818,9 +818,9 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
     }
     
     // 准备存储结构体的不同部分
-    std::map<std::string, std::shared_ptr<ASTNode>> fields;      // 实例变量
+    std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> fields;      // 实例变量
     std::vector<std::shared_ptr<ASTNode>> functions;             // 函数列表
-    std::map<std::string, std::shared_ptr<ASTNode>> attributes;  // 类属性
+    std::vector<std::shared_ptr<ASTNode>> attributes;  // 类属性
     
     if (current().type == TOK_COLON) {
         consume(TOK_COLON, __FILE__, __LINE__);
@@ -839,18 +839,15 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
                 // 解析属性
                 if (current().type == TOK_ID) {
                     std::string attr_name = current().value;
+                    int line = current().line;
                     consume(TOK_ID, __FILE__, __LINE__);
                     
                     if (current().type == TOK_ASSIGN) {
                         consume(TOK_ASSIGN, __FILE__, __LINE__);
                         auto value = parse_expr();
-                        if (value) {
-                            // 这里我们将其视为类属性
-                            attributes[attr_name] = value;
-                        }
-                    } else {
-                        // 如果没有初始化值，设置为null
-                        attributes[attr_name] = nullptr;
+                        attributes.push_back(std::make_shared<Assign>(
+                            ctx, attr_name, std::move(value), line));
+                        CONSUME_NEW_LINE;
                     }
                 }
                 CONSUME_NEW_LINE;

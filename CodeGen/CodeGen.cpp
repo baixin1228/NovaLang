@@ -4,8 +4,10 @@
 #include "CodeGen.h"
 #include "Common.h"
 #include "Context.h"
+#include "Function.h"
 #include "If.h"
 #include "For.h"
+#include "StructLiteral.h"
 #include "While.h"
 
 CodeGen::CodeGen(Context& ctx, bool debug) 
@@ -55,15 +57,15 @@ CodeGen::CodeGen(Context& ctx, bool debug)
 }
 
 int CodeGen::generate_global_variable(Assign &assign) {
-  auto var_node = assign.lookup_var(assign.var, assign.line);
-  if (!var_node) {
+  auto var_info = assign.lookup_var(assign.var, assign.line);
+  if (!var_info) {
     throw std::runtime_error("未定义的变量: " + assign.var +
                              " source:" + std::to_string(assign.line) +
                              " file:" + std::string(__FILE__) +
                              " line:" + std::to_string(__LINE__));
     return -1;
   }
-  VarType type = var_node->type;
+  VarType type = var_info->node->type;
 
   if (assign.need_create) {
     llvm::Type *ty;
@@ -99,7 +101,7 @@ int CodeGen::generate_global_variable(Assign &assign) {
                                  assign.var);
     global_var->setAlignment(llvm::Align(get_type_align(type)));
 
-    var_node->llvm_obj = global_var;
+    var_info->llvm_obj = global_var;
   }
 
   if (auto *assign_value = dynamic_cast<Assign *>(assign.value.get())) {
@@ -115,14 +117,14 @@ int CodeGen::generate() {
     // 然后生成所有函数的定义
     for (auto &stmt : stmts) {
       if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-        if (generate_global_variable(*assign) == -1) {
+        if (assign->gencode_var() == -1) {
           return -1;
         }
       }
       if (auto *iff = dynamic_cast<If *>(stmt.get())) {
         for (auto &stmt : iff->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            if (generate_global_variable(*assign) == -1) {
+            if (assign->gencode_var() == -1) {
               return -1;
             }
           }
@@ -131,7 +133,7 @@ int CodeGen::generate() {
       if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
         for (auto &stmt : ffor->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            if (generate_global_variable(*assign) == -1) {
+            if (assign->gencode_var() == -1) {
               return -1;
             }
           }
@@ -140,15 +142,25 @@ int CodeGen::generate() {
       if (auto *whl = dynamic_cast<While *>(stmt.get())) {
         for (auto &stmt : whl->body) {
           if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            if (generate_global_variable(*assign) == -1) {
+            if (assign->gencode_var() == -1) {
               return -1;
             }
           }
         }
       }
       if (auto *func = dynamic_cast<Function *>(stmt.get())) {
+        std::cout << "==== Generating function: " << func->name << " ====" << std::endl;
         if (func->gencode_stmt() == -1) {
           return -1;
+        }
+      }
+
+      if (auto *cls = dynamic_cast<StructLiteral *>(stmt.get())) {
+        if (cls->struct_type == StructType::CLASS) {
+          std::cout << "==== Generating class: " << cls->name << " ====" << std::endl;
+          if (cls->gencode_stmt() == -1) {
+            return -1;
+          }
         }
       }
     }
@@ -178,10 +190,15 @@ int CodeGen::generate() {
     }
 
     for (auto& stmt : stmts) {
-        if (!dynamic_cast<Function*>(stmt.get())) {
-          if (stmt->gencode_stmt() == -1) {
-            return -1;
-          }
+        if (dynamic_cast<Function*>(stmt.get())) {
+          continue;
+        }
+        auto func = dynamic_cast<StructLiteral *>(stmt.get());
+        if (func && func->struct_type == StructType::CLASS) {
+          continue;
+        }
+        if (stmt->gencode_stmt() == -1) {
+          return -1;
         }
     }
 

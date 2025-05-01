@@ -13,15 +13,18 @@ int For::visit_stmt() {
                          "for 循环范围必须是 int 类型，得到: " + var_type_to_string(end_ast->type), line, __FILE__, __LINE__ );
         return -1;
     }
-    add_var(iterator->name, iterator, true);
+    auto iterator_info = std::make_shared<VarInfo>();
+    iterator_info->line = line;
+    iterator_info->node = iterator;
+    add_var(iterator->name, iterator_info, true);
     iterator->type = VarType::INT;
     std::shared_ptr<ASTNode> iterator_ast;
     ret = iterator->visit_expr(iterator_ast);
     if (ret == -1) {
       return -1;
     }
-    auto var_node = lookup_var(iterator->name, line);;
-    var_node->type = VarType::INT;
+    auto var_info = lookup_var(iterator->name, line);;
+    var_info->node->type = VarType::INT;
     for (auto& stmt : body) {
         if (stmt) {
             int ret = stmt->visit_stmt();
@@ -42,8 +45,8 @@ int For::gencode_stmt() {
   auto iter_ptr =
       ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, iterator->name);
   iter_ptr->setAlignment(llvm::Align(get_type_align(VarType::INT)));
-  auto var_node = lookup_var(iterator->name, line);
-  var_node->llvm_obj = iter_ptr;
+  auto var_info = lookup_var(iterator->name, line);
+  var_info->llvm_obj = iter_ptr;
   auto str = ctx.builder->CreateStore(ctx.builder->getInt64(0), iter_ptr);
   str->setAlignment(llvm::Align(get_type_align(VarType::INT)));
 

@@ -10,7 +10,7 @@ void ASTNode::set_parent(ASTNode *p) { parent = p; }
 
 /* add variable to current scope or global scope */
 int ASTNode::add_var(const std::string &name,
-                          std::shared_ptr<ASTNode> node, bool is_params) {
+                          std::shared_ptr<VarInfo> node, bool is_params) {
   // if it is global variable, set it in global scope
   if (is_global_var(name)) {
     if (is_params) {
@@ -27,9 +27,9 @@ int ASTNode::add_var(const std::string &name,
       return -1;
     }
     vars[name] = node;
-// #ifdef DEBUG
-//   std::cout << "-- add local var: " << name << " " << line << std::endl;
-// #endif
+#ifdef DEBUG
+  std::cout << "-- add local var: " << name << " " << line << std::endl;
+#endif
     return 0;
   }
 
@@ -40,29 +40,31 @@ int ASTNode::add_var(const std::string &name,
   return ctx.add_global_var(name, node);
 }
 
-std::shared_ptr<ASTNode> ASTNode::lookup_var(const std::string &name, int p_line) {
+std::shared_ptr<VarInfo> ASTNode::lookup_var(const std::string &name, int p_line) {
   if (name.empty()) {
     throw std::runtime_error("variable name is empty: " + name +
                              " line: " + std::to_string(line) + " file: " + __FILE__ + " line: " + std::to_string(__LINE__));
   }
-  // std::cout << "-- lookup var: " << name << " " << p_line << std::endl;
   if (is_scope) {
     auto info = vars.find(name);
     if (info != vars.end()) {
-      // std::cout << "-- lookup local var: " << name << " " << p_line << " "
-      //           << info->second  << std::endl;
       return info->second;
     }
   }
   if (parent) {
     return parent->lookup_var(name, p_line);
   }
-  return ctx.lookup_global_var(name, p_line);
+  std::shared_ptr<VarInfo> ret = ctx.lookup_global_var(name, p_line);
+  if (!ret) {
+    std::cout << "lookup local var failed: " << name << " limit_line:" << p_line 
+    << " current_line:" << line << std::endl;
+  }
+  return ret;
 }
 
-int ASTNode::_add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
+int ASTNode::_add_func(const std::string &name, std::shared_ptr<FuncInfo> node) {
   if (is_scope) {
-    func_infos[name] = node;
+    funcs[name] = node;
     return 0;
   }
   if (parent) {
@@ -72,7 +74,7 @@ int ASTNode::_add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
   return ctx.add_global_func(name, node);
 }
 
-int ASTNode::add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
+int ASTNode::add_func(const std::string &name, std::shared_ptr<FuncInfo> node) {
   if (parent) {
     return parent->_add_func(name, node);
   }
@@ -80,10 +82,10 @@ int ASTNode::add_func(const std::string &name, std::shared_ptr<ASTNode> node) {
   return ctx.add_global_func(name, node);
 }
 
-std::shared_ptr<ASTNode> ASTNode::lookup_func(const std::string &name) {
+std::shared_ptr<FuncInfo> ASTNode::lookup_func(const std::string &name) {
   if (is_scope) {
-    auto info = func_infos.find(name);
-    if (info != func_infos.end()) {
+    auto info = funcs.find(name);
+    if (info != funcs.end()) {
       return info->second;
     }
   }
@@ -91,6 +93,39 @@ std::shared_ptr<ASTNode> ASTNode::lookup_func(const std::string &name) {
     return parent->lookup_func(name);
   }
   return ctx.lookup_global_func(name);
+}
+
+int ASTNode::_add_struct(const std::string &name, std::shared_ptr<ClassInfo> node) {
+  if (is_scope) {
+    structs[name] = node;
+    return 0;
+  }
+  if (parent) {
+    return parent->_add_struct(name, node);
+  }
+
+  return ctx.add_global_struct(name, node);
+}
+
+int ASTNode::add_struct(const std::string &name, std::shared_ptr<ClassInfo> node) {
+  if (parent) {
+    return parent->_add_struct(name, node);
+  }
+
+  return ctx.add_global_struct(name, node);
+}
+
+std::shared_ptr<ClassInfo> ASTNode::lookup_struct(const std::string &name) {
+  if (is_scope) {
+    auto info = structs.find(name);
+    if (info != structs.end()) {
+      return info->second;
+    }
+  }
+  if (parent) {
+    return parent->lookup_struct(name);
+  }
+  return ctx.lookup_global_struct(name);
 }
 
 void ASTNode::add_global_var(const std::string &name) {

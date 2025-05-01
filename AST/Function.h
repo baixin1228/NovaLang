@@ -7,11 +7,10 @@
 class Function : public ASTNode {
 public:
     std::string name;
-    std::shared_ptr<ASTNode> return_ast;
+    std::shared_ptr<ASTNode> return_ast = nullptr;
     uint32_t reference_count;
 
     llvm::FunctionType *llvm_type;
-    llvm::Function *llvm_obj;
     std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> params;
     std::vector<std::shared_ptr<ASTNode>> body;
     
