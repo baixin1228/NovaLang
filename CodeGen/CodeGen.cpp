@@ -193,9 +193,18 @@ int CodeGen::generate() {
         if (dynamic_cast<Function*>(stmt.get())) {
           continue;
         }
-        auto func = dynamic_cast<StructLiteral *>(stmt.get());
-        if (func && func->struct_type == StructType::CLASS) {
-          continue;
+        auto struct_node = dynamic_cast<StructLiteral *>(stmt.get());
+        if (struct_node) {
+          if(struct_node->struct_type == StructType::CLASS) {
+            for (auto &attr : struct_node->attributes) {
+              if (auto *assign = dynamic_cast<Assign *>(attr.get())) {
+                if (assign->gencode_stmt() == -1) {
+                  return -1;
+                }
+              }
+            }
+            continue;
+          }
         }
         if (stmt->gencode_stmt() == -1) {
           return -1;

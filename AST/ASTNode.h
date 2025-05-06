@@ -33,7 +33,6 @@ protected:
   std::map<std::string, std::shared_ptr<ClassInfo>> structs;
   std::map<std::string, llvm::Value *> symbols;
   std::set<std::string> global_vars;
-  Context &ctx;
   bool is_scope;
 
   int _add_func(const std::string &name, std::shared_ptr<FuncInfo> node);
@@ -42,6 +41,7 @@ protected:
 public:
   int line;
   VarType type;
+  Context &ctx;
   ASTNode(Context &ctx, int ln, bool is_scope = false);
   virtual ~ASTNode() = default;
 

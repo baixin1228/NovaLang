@@ -26,4 +26,5 @@ public:
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
     int gencode_var();
+    static int gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info, std::shared_ptr<ASTNode> value);
 };

@@ -5,6 +5,7 @@
 #include <utility>
 #include <iostream>
 #include "Function.h"
+#include "Variable.h"
 #include "Common.h"
 
 // 定义结构体类型枚举
@@ -65,6 +66,10 @@ public:
         for (auto &attr : attributes) {
             if (attr) {
                 attr->set_parent(this);
+                auto attr_node = std::dynamic_pointer_cast<Assign>(attr);
+                if (attr_node) {
+                    attr_node->is_global = true;
+                }
             }
         }
         // 类类型需要设置为作用域
@@ -80,7 +85,6 @@ public:
         if (!attributes.empty()) {
             std::cout << std::string((level + 1) * 2, ' ') << "Attributes:\n";
             for (const auto& attr : attributes) {
-                std::cout << ":\n";
                 if (attr) {
                     attr->print(level + 2);
                 } else {

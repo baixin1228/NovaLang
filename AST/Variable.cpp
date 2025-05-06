@@ -57,9 +57,13 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
 
 int Variable::gencode_stmt() { return 0; }
 
-int Variable::gencode_var_expr(VarType expected_type, llvm::Value *&value, std::shared_ptr<VarInfo> var_node) {
-  auto ptr = var_node->llvm_obj;
-  VarType type = var_node->node->type;
+int Variable::gencode_var_expr(Context &ctx, std::string name,
+                               int line,
+                               VarType expected_type,
+                               llvm::Value *&value,
+                               std::shared_ptr<VarInfo> var_info) {
+  auto ptr = var_info->llvm_obj;
+  VarType type = var_info->node->type;
   // std::cout << "Variable::gencode_expr: " << name << " type: " <<
   // var_type_to_string(type) << std::endl;
   switch (type) {
@@ -189,5 +193,5 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
                              " line:" + std::to_string(__LINE__));
     return -1;
   }
-  return gencode_var_expr(expected_type, value, var_info);
+  return gencode_var_expr(ctx, name, line, expected_type, value, var_info);
 }

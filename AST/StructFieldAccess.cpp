@@ -151,14 +151,13 @@ int StructFieldAccess::gencode_class_expr(VarType expected_type,
   if (struct_expr->visit_expr(struct_var) != 0) {
     return -1;
   }
-  auto var_node = struct_var->lookup_var(field_name, -1);
-  if (!var_node) {
+  auto var_info = struct_var->lookup_var(field_name, -1);
+  if (!var_info) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                   "未定义的类属性: " + field_name, line, __FILE__, __LINE__);
     return -1;
   }
-  value = var_node->llvm_obj;
-  return 0;
+  return Variable::gencode_var_expr(ctx, field_name, line, expected_type, value, var_info);
 }
 
 int StructFieldAccess::gencode_struct_expr(VarType expected_type,

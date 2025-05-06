@@ -1,5 +1,6 @@
 #pragma once
 #include "ASTNode.h"
+#include "StructLiteral.h"
 #include <iostream>
 
 class StructFieldAssign : public ASTNode {
@@ -26,6 +27,10 @@ public:
 
     int visit_stmt() override;
     int visit_expr(std::shared_ptr<ASTNode> &self) override;
+    int visit_struct_stmt(StructLiteral *struct_ast);
+    int visit_class_stmt(StructLiteral *class_ast);
     int gencode_stmt() override;
+    int gencode_struct_stmt(StructLiteral *struct_ast);
+    int gencode_class_stmt(StructLiteral *class_ast);
     int gencode_expr(VarType expected_type, llvm::Value *&value) override;
 }; 

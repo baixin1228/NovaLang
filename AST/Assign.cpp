@@ -23,7 +23,7 @@ int Assign::visit_expr(std::shared_ptr<ASTNode> &self) {
   }
   auto var_info = std::make_shared<VarInfo>();
   var_info->line = line;
-  var_info->node = value;
+  var_info->node = value_ret;
   if (add_var(var, var_info) == 0) {
     need_create = true;
     if (get_scope_depth() == 0) {
@@ -125,14 +125,11 @@ int Assign::gencode_var() {
   // }
 }
 
-int Assign::gencode_stmt() {
-
-  gencode_var();
-
-  auto var_info = lookup_var(var, line);
+int Assign::gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info,
+                           std::shared_ptr<ASTNode> value) {
   if (!var_info->llvm_obj) {
     throw std::runtime_error(
-        "变量未完成初始化: " + var + " code:" + std::to_string(line) +
+        "变量未完成初始化: " + name + " code:" + std::to_string(var_info->line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
   }
 
@@ -144,7 +141,7 @@ int Assign::gencode_stmt() {
   }
   if (!llvm_value) {
     throw std::runtime_error(
-        "变量未生成ir: " + var + " code:" + std::to_string(line) +
+        "变量未生成ir: " + name + " code:" + std::to_string(var_info->line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
   }
 
@@ -152,20 +149,31 @@ int Assign::gencode_stmt() {
   if (var_type == VarType::STRING) {
     // 先获取内存管理函数
     auto retain_func =
-        ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");
+        value->ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");
     if (!retain_func) {
       throw std::runtime_error("无法获取内存管理函数: nova_memory_retain" +
-                               std::to_string(line) +
+                               std::to_string(var_info->line) +
                                " line:" + std::to_string(__LINE__));
     }
 
     // 调用引用计数增加函数
-    ctx.builder->CreateCall(retain_func, {llvm_value});
+    value->ctx.builder->CreateCall(retain_func, {llvm_value});
   }
 
-  auto str = ctx.builder->CreateStore(llvm_value, var_info->llvm_obj);
+  auto str = value->ctx.builder->CreateStore(llvm_value, var_info->llvm_obj);
   str->setAlignment(llvm::Align(get_type_align(var_type)));
   return 0;
+}
+
+int Assign::gencode_stmt() {
+  gencode_var();
+  auto var_info = lookup_var(var, line);
+  if (!var_info) {
+    throw std::runtime_error(
+        "未定义的变量: " + var + " source:" + std::to_string(line) +
+        " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
+  }
+  return gencode_assign(var, var_info, value);
 }
 
 int Assign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {

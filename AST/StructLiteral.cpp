@@ -109,8 +109,9 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
 int StructLiteral::gencode_stmt() {
   if (struct_type == StructType::CLASS) {
     for (auto attr : attributes) {
-      if (attr) {
-        if (attr->gencode_stmt() == -1) {
+      auto attr_node = std::dynamic_pointer_cast<Assign>(attr);
+      if (attr_node) {
+        if (attr_node->gencode_var() == -1) {
           return -1;
         }
       }

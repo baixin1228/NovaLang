@@ -5,26 +5,7 @@
 #include "StructLiteral.h"
 #include "Variable.h"
 
-int StructFieldAssign::visit_stmt() {
-  // Validate structure expression
-  std::shared_ptr<ASTNode> prev_ast;
-  if (struct_expr->visit_expr(prev_ast) != 0) {
-    return -1;
-  }
-
-  auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
-  if (!struct_ast) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "无法给非结构体类型的字段赋值", line, __FILE__, __LINE__);
-    return -1;
-  }
-
-  // Validate value expression
-  std::shared_ptr<ASTNode> value_ast;
-  if (visit_expr(value_ast) != 0) {
-    return -1;
-  }
-
+int StructFieldAssign::visit_struct_stmt(StructLiteral *struct_ast) {
   auto field = std::find_if(struct_ast->fields.begin(), struct_ast->fields.end(),
                             [&](const std::pair<std::string, std::shared_ptr<ASTNode>>& pair) {
                               return pair.first == field_name;
@@ -35,6 +16,13 @@ int StructFieldAssign::visit_stmt() {
                   __LINE__);
     return -1;
   }
+
+  // Validate value expression
+  std::shared_ptr<ASTNode> value_ast;
+  if (visit_expr(value_ast) != 0) {
+    return -1;
+  }
+
   if (field->second->type != value_ast->type) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                   "赋值类型不匹配: " + field_name + " " +
@@ -48,13 +36,69 @@ int StructFieldAssign::visit_stmt() {
   return 0;
 }
 
+int StructFieldAssign::visit_class_stmt(StructLiteral *class_ast) {
+  auto var_info = class_ast->lookup_var(field_name, -1);
+  if (var_info) {
+    // Validate value expression
+    std::shared_ptr<ASTNode> value_ast;
+    if (visit_expr(value_ast) != 0) {
+      return -1;
+    }
+
+    if (var_info->node->type != value_ast->type) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "赋值类型不匹配: " + field_name + " " +
+                        var_type_to_string(var_info->node->type) + " " +
+                        var_type_to_string(value_ast->type),
+                    line, __FILE__, __LINE__);
+      return -1;
+    }
+
+    type = value_ast->type;
+    return 0;
+  }
+
+  auto attribute = class_ast->functions.find(field_name);
+  if (attribute != class_ast->functions.end()) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "类的函数不可更改" + field_name,
+                line, __FILE__, __LINE__);
+    return -1;
+  }
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的类属性: " + field_name,
+                line, __FILE__, __LINE__);
+  return -1;
+}
+
+int StructFieldAssign::visit_stmt() {
+  // Validate structure expression
+  std::shared_ptr<ASTNode> prev_ast;
+  if (struct_expr->visit_expr(prev_ast) != 0) {
+    return -1;
+  }
+
+  auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
+  if (struct_ast) {
+    if (struct_ast->struct_type == StructType::STRUCT) {
+      return visit_struct_stmt(struct_ast);
+    } else {
+      return visit_class_stmt(struct_ast);
+    }
+  } else {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "无法给非结构体类型的字段赋值, 得到的类型: " +
+                      var_type_to_string(prev_ast->type),
+                  line, __FILE__, __LINE__);
+    return -1;
+  }
+}
+
 int StructFieldAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
   // For struct field assignment, result is the value expression's type
   value->visit_expr(self);
   return 0;
 }
 
-int StructFieldAssign::gencode_stmt() {
+int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
   // Get struct pointer - this could be a nested structure
   llvm::Value *struct_val = nullptr;
   if (struct_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
@@ -133,6 +177,37 @@ int StructFieldAssign::gencode_stmt() {
             << var_type_to_string(type) << std::endl;
 
   return 0;
+}
+
+int StructFieldAssign::gencode_class_stmt(StructLiteral *class_ast) {
+  auto var_info = class_ast->lookup_var(field_name, -1);
+  if (var_info) {
+    return Assign::gencode_assign(field_name, var_info, value);
+  }
+  throw std::runtime_error("未定义的类属性: " + field_name);
+}
+
+int StructFieldAssign::gencode_stmt() {
+  // Validate structure expression
+  std::shared_ptr<ASTNode> prev_ast;
+  if (struct_expr->visit_expr(prev_ast) != 0) {
+    return -1;
+  }
+
+  auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
+  if (struct_ast) {
+    if (struct_ast->struct_type == StructType::STRUCT) {
+      return gencode_struct_stmt(struct_ast);
+    } else {
+      return gencode_class_stmt(struct_ast);
+    }
+  } else {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "无法给非结构体类型的字段赋值, 得到的类型: " +
+                      var_type_to_string(prev_ast->type),
+                  line, __FILE__, __LINE__);
+    return -1;
+  }
 }
 
 int StructFieldAssign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
