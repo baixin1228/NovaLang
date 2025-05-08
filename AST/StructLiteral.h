@@ -31,15 +31,18 @@ public:
     std::map<std::string, std::shared_ptr<ASTNode>> functions;  // 函数列表
     std::vector<std::shared_ptr<ASTNode>> attributes; // 类属性
     StructType struct_type;                 // 类型标识：结构体或类
+    llvm::Value *llvm_instance = nullptr;
+    std::string class_parent_name;
 
     // 构造函数支持类名、函数列表和属性
     StructLiteral(Context &ctx, std::string name,
+                 std::string class_parent_name,
                  std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> f, 
                  std::vector<std::shared_ptr<ASTNode>> funcs,
                  std::vector<std::shared_ptr<ASTNode>> attrs,
                  StructType struct_type, int ln)
         : ASTNode(ctx, ln), name(std::move(name)), fields(std::move(f)),
-          attributes(std::move(attrs)), struct_type(struct_type) {
+          attributes(std::move(attrs)), struct_type(struct_type), class_parent_name(std::move(class_parent_name)) {
         // 设置所有字段的父节点
         for (auto &field : fields) {
             if (field.second) {
@@ -79,8 +82,24 @@ public:
     }
 
     void print(int level) override {
-        std::string type_str = (struct_type == StructType::CLASS) ? "Class" : "Struct";
-        std::cout << std::string(level * 2, ' ') << type_str << "Literal: " << name << " [行 " << line << "]\n";
+        std::string type_str;
+        switch (type)
+        {
+            case VarType::CLASS:
+                type_str = "Class";
+                break;
+            case VarType::STRUCT:
+                type_str = "Struct";
+                break;
+            case VarType::INSTANCE:
+                type_str = "Instance";
+                break;
+            default:
+              type_str = "Unknown";
+              break;
+        }
+        std::cout << std::string(level * 2, ' ') << type_str << ": " << name 
+        << " extends: " << class_parent_name << " [行 " << line << "]\n";
         
         if (!attributes.empty()) {
             std::cout << std::string((level + 1) * 2, ' ') << "Attributes:\n";

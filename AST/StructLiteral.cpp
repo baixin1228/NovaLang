@@ -90,6 +90,11 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
       type = VarType::STRUCT;
     } else {
       type = VarType::CLASS;
+      for (auto func : functions) {
+        if (func.second->visit_stmt() == -1) {
+          return -1;
+        }
+      }
     }
     std::cout << "==== Visit struct: " << name
               << " visit_count: " << visit_count << " ====" << std::endl;
@@ -101,11 +106,15 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
   self = shared_from_this();
   return 0;
 }
-// for (auto &func : cls->functions) {
-//   if (func.second->gencode_stmt() == -1) {
+
+// int StructLiteral::visit_func(std::string func_name) {
+//   auto func = functions.find(func_name);
+//   if (func == functions.end()) {
 //     return -1;
 //   }
+//   return func->second->visit_stmt();
 // }
+
 int StructLiteral::gencode_stmt() {
   if (struct_type == StructType::CLASS) {
     for (auto attr : attributes) {
@@ -116,11 +125,24 @@ int StructLiteral::gencode_stmt() {
         }
       }
     }
+    for (auto func : functions) {
+      auto func_node = std::dynamic_pointer_cast<Function>(func.second);
+      if (func_node->reference_count > 0) {
+        if (func_node->gencode_stmt() == -1) {
+          return -1;
+        }
+      }
+    }
   }
   return 0;
 }
 
 int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  if (llvm_instance)
+  {
+    value = llvm_instance;
+    return 0;
+  }
   // 计算所需内存大小 - 仅需存储字段值
   size_t total_size = 0;
 
@@ -227,6 +249,7 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
 
       // 存储函数指针
       ctx.builder->CreateStore(func_ptr, value_ptr);
+      // std::cout << "gen instance function: " << field_info.first << " func_ptr: " << func_ptr << " value_ptr: " << value_ptr << std::endl;
       break;
     }
     case VarType::STRING:
@@ -263,5 +286,6 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   }
 
   value = struct_ptr;
+  llvm_instance = value;
   return 0;
 }

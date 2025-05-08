@@ -7,35 +7,42 @@
 #include "TypeChecker.h"
 #include "Variable.h"
 #include <execinfo.h>
+#include <llvm-14/llvm/Support/raw_ostream.h>
 
 int Call::visit_stmt() {
   std::shared_ptr<ASTNode> self_ast;
   return visit_expr(self_ast);
 }
 
-int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
+int Call::visit_class_expr(std::shared_ptr<ASTNode> &self,
                           std::shared_ptr<ASTNode> ast_node) {
-  if (!ast_node) {
-    auto func_info = lookup_func(name);
-    if (!func_info) {
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
-                    __FILE__, __LINE__);
-      return -1;
-    }
-    ast_node = func_info->node;
+  if (instance)
+  {
+    self = instance;
+    return 0;
   }
-  if (!ast_node) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+
+  auto class_node = dynamic_cast<StructLiteral *>(ast_node.get());
+  if (!class_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "非法访问，非类类型: " + name, line,
                   __FILE__, __LINE__);
     return -1;
   }
+  self = std::make_shared<StructLiteral>(*class_node);
+  self->type = VarType::INSTANCE;
+  type = self->type;
+  instance = self;
+  return 0;
+}
 
-  auto func_node = dynamic_cast<Function *>(ast_node.get());
+int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
+                          std::shared_ptr<ASTNode> func_ast) {
+  auto func_node = dynamic_cast<Function *>(func_ast.get());
   if (!func_node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                   "调用非函数类型: " + name + " 得到类型：" +
-                      var_type_to_string(ast_node->type) + " 行：" +
-                      std::to_string(ast_node->line),
+                      var_type_to_string(func_ast->type) + " 行：" +
+                      std::to_string(func_ast->line),
                   line, __FILE__, __LINE__);
     return -1;
   }
@@ -72,19 +79,53 @@ int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
 
   self = func_node->return_ast;
   if (self == nullptr) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name, line,
-                  __FILE__, __LINE__);
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name,
+                  line, __FILE__, __LINE__);
     return -1;
   }
-  type = func_node->type;
+  type = self->type;
   return 0;
 }
 
-int Call::visit_struct_expr(
-    std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &field_value) {
-  // Implementation for struct methods
+int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &self,
+                          std::shared_ptr<ASTNode> ast_node) {
+  if (!ast_node) {
+    auto func_info = lookup_func(name);
+    if (func_info) {
+      ast_node = func_info->node;
+    }
+  }
+  if (!ast_node) {
+    auto struct_info = lookup_struct(name);
+    if (struct_info) {
+      ast_node = struct_info->node;
+    }
+  }
+  if (!ast_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  if (ast_node->type == VarType::FUNCTION) {
+    return visit_func_expr(self, ast_node);
+  }
+  if (ast_node->type == VarType::CLASS) {
+    return visit_class_expr(self, ast_node);
+  }
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "非法访问，非函数或类类型: " + name
+                + " 类型: " + var_type_to_string(ast_node->type), line,
+                __FILE__, __LINE__);
+  return -1;
+}
 
-  // Evaluate the forward_expr to get the struct instance
+int Call::visit_prev_expr(
+    std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &ret_ast) {
+  if(return_ast)
+  {
+    ret_ast = return_ast;
+    return 0;
+  }
+
   std::shared_ptr<ASTNode> struct_instance;
   int ret = forward_expr->visit_expr(struct_instance);
   if (ret == -1) {
@@ -92,7 +133,7 @@ int Call::visit_struct_expr(
   }
 
   if (!struct_instance) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无效的结构体实例", line,
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无效实例", line,
                   __FILE__, __LINE__);
     return -1;
   }
@@ -103,55 +144,58 @@ int Call::visit_struct_expr(
                   __FILE__, __LINE__);
     return -1;
   }
+  
+  if (struct_node->type == VarType::INSTANCE) {
+    args.insert(args.begin(), struct_instance);
+    ret = visit_func_expr(self, struct_node->functions[name]);
+    if (ret == -1) {
+      return -1;
+    }
+    auto value_ast =
+        std::make_shared<Variable>(ctx, name, struct_node->functions[name]->line);
+    value_ast->set_parent(struct_node);
+    struct_node->fields.push_back(
+        std::make_pair(name, value_ast));
+  }
 
   size_t field_offset = 0;
   VarType field_type = VarType::NONE;
   
-  ret = access_field_offset(struct_instance, name, field_value, field_offset,
+  ret = access_field_offset(struct_instance, name, ret_ast, field_offset,
                             field_type);
   if (ret == -1) {
     return -1;
   }
+  return_ast = ret_ast;
+
   return 0;
 }
 
 int Call::visit_expr(std::shared_ptr<ASTNode> &self_ast) {
   // Check if this is a method call on an object
   if (forward_expr) {
-    std::shared_ptr<ASTNode> field_value;
-    int ret = visit_struct_expr(self_ast, field_value);
+    std::shared_ptr<ASTNode> ret_ast;
+    int ret = visit_prev_expr(self_ast, ret_ast);
     if (ret == -1) {
       return -1;
     }
-    return visit_func_expr(self_ast, field_value);
+    return visit_func_class_expr(self_ast, ret_ast);
   }
 
   // Otherwise, treat it as a regular function call
-  return visit_func_expr(self_ast, nullptr);
+  return visit_func_class_expr(self_ast, nullptr);
 }
 
 int Call::gencode_stmt() {
-  llvm::Value *dummy_value =
-      nullptr; // Dummy variable for the reference parameter
+  llvm::Value *dummy_value = nullptr;
   return gencode_expr(VarType::NONE, dummy_value);
 }
 
-int Call::gencode_func_expr(VarType expected_type, llvm::Value *&ret_value) {
-  // 查找函数
-  auto func_info = lookup_func(name);
-  if (!func_info) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
-                  __FILE__, __LINE__);
-    return -1;
-  }
-
-  auto func_node = dynamic_cast<Function *>(func_info->node.get());
-  if (!func_node) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
-                  __FILE__, __LINE__);
-    return -1;
-  }
-  auto func_value = func_info->llvm_func;
+int Call::gencode_func_expr(VarType expected_type, llvm::Function *llvm_func, llvm::Value *&ret_value) {
+  // std::cout << "func name: " << name << " return type: " <<
+  // var_type_to_string(func_node->return_ast->type) << std::endl;
+  // llvm_func->getType()->print(llvm::outs());
+  // std::cout << std::endl;
   // 准备参数列表
   std::vector<llvm::Value *> llvm_args;
 
@@ -169,20 +213,42 @@ int Call::gencode_func_expr(VarType expected_type, llvm::Value *&ret_value) {
     }
     llvm_args.push_back(arg_val);
   }
-  
   // 调用函数
-  ret_value = ctx.builder->CreateCall(func_value, llvm_args, "call");
+  ret_value = ctx.builder->CreateCall(llvm_func, llvm_args, "call");
   return 0;
 }
 
-int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
-    std::shared_ptr<ASTNode> field_value;
-    std::shared_ptr<ASTNode> self_ast;
-    int ret = visit_struct_expr(self_ast, field_value);
-    if (ret == -1) {
-      return -1;
+int Call::gencode_call_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // // 查找类
+  auto class_info = lookup_struct(name);
+  if (class_info) {
+    std::cout << "gen instance: " << name << std::endl;
+    return instance->gencode_expr(expected_type, ret_value);
+  }
+  // 查找函数
+  auto func_info = lookup_func(name);
+  if (!func_info) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  auto func_node = dynamic_cast<Function *>(func_info->node.get());
+  if (!func_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  return gencode_func_expr(expected_type, func_info->llvm_func, ret_value);
+}
+
+int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
+  std::shared_ptr<ASTNode> ret_ast;
+  std::shared_ptr<ASTNode> self_ast;
+  int ret = visit_prev_expr(self_ast, ret_ast);
+  if (ret == -1) {
+    return -1;
     }
-    auto func_node = dynamic_cast<Function *>(field_value.get());
+    auto func_node = dynamic_cast<Function *>(ret_ast.get());
     if (!func_node) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
                     __FILE__, __LINE__);
@@ -193,15 +259,19 @@ int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
                     __FILE__, __LINE__);
       return -1;
     }
-
+    // std::cout << name << std::endl;
+    // func_node->llvm_type->print(llvm::outs());
+    // std::cout << std::endl;
     // 获取结构体对象
+    std::cout << "gen call function: " << name << std::endl;
     llvm::Value *struct_val = nullptr;
     if (forward_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法获取结构体实例", line,
                   __FILE__, __LINE__);
       return -1;
     }
-    
+
+    std::cout << "gen call function: " << name << std::endl;
     // 获取结构体数据区域指针
     auto data_ptr = ctx.builder->CreateCall(
         ctx.runtime_manager->getRuntimeFunction("nova_memory_get_data"),
@@ -229,7 +299,8 @@ int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
                   __FILE__, __LINE__);
       return -1;
     }
-    
+    std::cout << "gen call function: " << name << std::endl;
+
     // 计算字段指针位置
     auto field_ptr = ctx.builder->CreateGEP(
         ctx.builder->getInt8Ty(), byte_ptr,
@@ -241,6 +312,7 @@ int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
     
     // 加载函数指针
     func_ptr = ctx.builder->CreateLoad(func_ptr_type, func_ptr);
+    std::cout << "gen call function: " << name << std::endl;
 
     std::vector<llvm::Value *> llvm_args;
     // 处理所有参数
@@ -257,7 +329,7 @@ int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
       }
       llvm_args.push_back(arg_val);
     }
-    
+
     // 调用函数指针
     ret_value = ctx.builder->CreateCall(func_node->llvm_type, func_ptr, llvm_args, "struct_call");
     return 0;
@@ -266,9 +338,9 @@ int Call::gencode_struct_expr(VarType expected_type, llvm::Value *&ret_value) {
 int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
   // 如果存在前向表达式，则调用结构体方法
   if (forward_expr) {
-    return gencode_struct_expr(expected_type, ret_value);
+    return gencode_prev_expr(expected_type, ret_value);
   }
-  
+
   // 否则调用普通函数
-  return gencode_func_expr(expected_type, ret_value);
+  return gencode_call_expr(expected_type, ret_value);
 }

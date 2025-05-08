@@ -10,23 +10,32 @@ int StructFieldAssign::visit_struct_stmt(StructLiteral *struct_ast) {
                             [&](const std::pair<std::string, std::shared_ptr<ASTNode>>& pair) {
                               return pair.first == field_name;
                             });
-  if (field == struct_ast->fields.end()) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "未定义的结构体字段: " + field_name, line, __FILE__,
-                  __LINE__);
-    return -1;
-  }
 
+  VarType field_type = VarType::NONE;
   // Validate value expression
   std::shared_ptr<ASTNode> value_ast;
   if (visit_expr(value_ast) != 0) {
     return -1;
   }
 
-  if (field->second->type != value_ast->type) {
+  if (field == struct_ast->fields.end()) {
+    if (struct_ast->type == VarType::INSTANCE) {
+      struct_ast->fields.push_back(std::make_pair(field_name, value_ast));
+      field_type = value_ast->type;
+    } else {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "未定义的结构体字段: " + field_name, line, __FILE__,
+                    __LINE__);
+      return -1;
+    }
+  } else {
+    field_type = field->second->type;
+  }
+
+  if (field_type != value_ast->type) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                   "赋值类型不匹配: " + field_name + " " +
-                      var_type_to_string(field->second->type) + " " +
+                      var_type_to_string(field_type) + " " +
                       var_type_to_string(value_ast->type),
                   line, __FILE__, __LINE__);
     return -1;
@@ -78,10 +87,10 @@ int StructFieldAssign::visit_stmt() {
 
   auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
   if (struct_ast) {
-    if (struct_ast->struct_type == StructType::STRUCT) {
-      return visit_struct_stmt(struct_ast);
-    } else {
+    if (struct_ast->type == VarType::CLASS) {
       return visit_class_stmt(struct_ast);
+    } else {
+      return visit_struct_stmt(struct_ast);
     }
   } else {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
@@ -184,7 +193,9 @@ int StructFieldAssign::gencode_class_stmt(StructLiteral *class_ast) {
   if (var_info) {
     return Assign::gencode_assign(field_name, var_info, value);
   }
-  throw std::runtime_error("未定义的类属性: " + field_name);
+  throw std::runtime_error("未定义的类属性: " + field_name + " code:"
+   + std::to_string(line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
+  return -1;
 }
 
 int StructFieldAssign::gencode_stmt() {
@@ -196,10 +207,10 @@ int StructFieldAssign::gencode_stmt() {
 
   auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
   if (struct_ast) {
-    if (struct_ast->struct_type == StructType::STRUCT) {
-      return gencode_struct_stmt(struct_ast);
-    } else {
+    if (struct_ast->type == VarType::CLASS) {
       return gencode_class_stmt(struct_ast);
+    } else {
+      return gencode_struct_stmt(struct_ast);
     }
   } else {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,

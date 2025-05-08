@@ -90,19 +90,24 @@ print(s, approx_pi, struct3.a3.a2.a, struct1.b)
 class AAA:
     aaa_b = 123
     def aa(self):
+        self.var = 112
         c = 0
         print(c)
         return 0
 
 AAA.aaa_b = 1
 print("aaa_b:", AAA.aaa_b)
-#aaa = AAA
-#print(aaa.aaa_b)
-#class bbb:
-#    def bb(self):
-#        return aaa()
+aaa = AAA
+bbb = aaa
+print(bbb.aaa_b)
 
-#obj_a = aaa()
-#print(obj_a.c)
+class BBB(AAA):
+    def bb(self):
+        return aaa()
+
+obj_a = AAA()
+print(obj_a.aaa_b)
+obj_a.aa()
+print(obj_a.aa())
 #value = bbb().b().c
 #print(value)

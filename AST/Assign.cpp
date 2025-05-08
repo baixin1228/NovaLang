@@ -84,11 +84,16 @@ int Assign::gencode_var() {
     case VarType::STRUCT:
     case VarType::DICT:
     case VarType::LIST:
+    case VarType::INSTANCE:
       ty = llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(),
                                   0);
       break;
+    case VarType::CLASS:
+      return 0;
     default:
-      ty = ctx.builder->getVoidTy();
+      throw std::runtime_error("未定义的变量类型: " + var + " source:" +
+                               std::to_string(line) + " file:" + std::string(__FILE__) +
+                               " line:" + std::to_string(__LINE__));
       break;
     }
 
@@ -172,6 +177,9 @@ int Assign::gencode_stmt() {
     throw std::runtime_error(
         "未定义的变量: " + var + " source:" + std::to_string(line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
+  }
+  if (var_info->node->type == VarType::CLASS) {
+    return 0;
   }
   return gencode_assign(var, var_info, value);
 }

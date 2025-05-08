@@ -652,6 +652,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
     return std::make_shared<StructLiteral>(
         ctx, 
         "",  // 匿名结构体
+        "",  // 匿名结构体
         std::move(fields), 
         std::move(functions), 
         std::move(attributes),
@@ -806,7 +807,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
         return nullptr;
     }
     
-    // 处理父类（暂时忽略继承关系）
+    // 处理父类
     std::string parent_class = "";
     if (current().type == TOK_LPAREN) {
         consume(TOK_LPAREN, __FILE__, __LINE__);
@@ -861,6 +862,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
     return std::make_shared<StructLiteral>(
         ctx, 
         class_name,
+        parent_class,
         std::move(fields),       // 实例字段
         std::move(functions),    // 函数列表
         std::move(attributes),   // 类属性

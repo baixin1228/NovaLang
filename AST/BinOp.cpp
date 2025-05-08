@@ -1,6 +1,7 @@
 #include "BinOp.h"
 #include "Common.h"
 #include "TypeChecker.h"
+#include <llvm-14/llvm/Support/raw_ostream.h>
 
 int BinOp::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "二元运算不能作为语句使用", line, __FILE__, __LINE__);
@@ -785,7 +786,9 @@ int BinOp::gen_logical_and(VarType expected_type, llvm::Value*& ret_value) {
   // 生成左操作数
   llvm::Value* left_value = nullptr;
   if (left->gencode_expr(VarType::BOOL, left_value) == -1) return -1;
-  
+  // std::cout << "left llvm type: " << std::endl;
+  // left_value->getType()->print(llvm::outs());
+  // std::cout << std::endl;
   // 条件跳转 - 如果左边为false，短路并返回false
   auto entry_bb_end = ctx.builder->GetInsertBlock();
   ctx.builder->CreateCondBr(left_value, right_bb, merge_bb);
@@ -803,9 +806,12 @@ int BinOp::gen_logical_and(VarType expected_type, llvm::Value*& ret_value) {
   
   // 创建PHI节点来合并结果
   auto phi = ctx.builder->CreatePHI(ctx.builder->getInt1Ty(), 2, "and.result");
-  phi->addIncoming(ctx.builder->getFalse(), entry_bb_end); 
+  phi->addIncoming(ctx.builder->getFalse(), entry_bb_end);
+  // std::cout << "right llvm type: " << std::endl;
+  // right_value->getType()->print(llvm::outs());
+  // std::cout << std::endl;
   phi->addIncoming(right_value, right_bb_end);
-  
+
   // 根据期望类型进行隐式转换
   if (expected_type != VarType::NONE && expected_type != VarType::BOOL) {
     if (expected_type == VarType::INT) {

@@ -34,7 +34,7 @@ public:
                 stmt->set_parent(this);
             }
         }
-
+        type = VarType::FUNCTION;
     }
 
     void print(int level) override {

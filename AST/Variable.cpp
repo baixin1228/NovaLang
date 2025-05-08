@@ -28,8 +28,8 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
   if(!var_info) {
     func_info = lookup_func(name);
     if (func_info) {
-      type = VarType::FUNCTION;
       self = func_info->node;
+      type = self->type;
     }
   }
   std::shared_ptr<ClassInfo> struct_info = nullptr;
@@ -114,6 +114,7 @@ int Variable::gencode_var_expr(Context &ctx, std::string name,
     value = load;
     return 0;
   }
+  case VarType::INSTANCE:
   case VarType::STRUCT: {
     // 对于结构体变量，加载结构体指针
     auto memory_block_ptr_type = llvm::PointerType::get(
