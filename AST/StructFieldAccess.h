@@ -1,5 +1,6 @@
 #pragma once
 #include "ASTNode.h"
+#include "Common.h"
 #include "StructLiteral.h"
 #include <iostream>
 #include <string>
@@ -12,7 +13,7 @@ int access_field_offset(std::shared_ptr<ASTNode> struct_node,
 class StructFieldAccess : public ASTNode {
 public:
   std::shared_ptr<ASTNode> struct_expr = nullptr;
-  StructType struct_type = StructType::STRUCT;
+  VarType struct_type = VarType::STRUCT;
   std::string struct_signature;
   std::string field_name;
   Context &ctx;

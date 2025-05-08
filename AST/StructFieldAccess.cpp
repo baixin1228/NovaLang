@@ -20,9 +20,11 @@ int StructFieldAccess::visit_struct_expr(std::shared_ptr<ASTNode> &self,
         return pair.first == field_name;
       });
   if (field == struct_lit->fields.end()) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "未定义的结构体字段: " + field_name, line, __FILE__,
-                  __LINE__);
+    if (struct_lit->type == VarType::STRUCT) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "未定义的结构体字段: " + field_name, line, __FILE__,
+                    __LINE__);
+    }
     return -1;
   } else {
     if (field->second->visit_expr(struct_var) != 0) {
@@ -68,8 +70,10 @@ int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &self,
     type = attr_return->type;
     return 0;
   }
-  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的类属性: " + field_name,
-                line, __FILE__, __LINE__);
+  if (struct_lit->type == VarType::CLASS) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的类属性: " + field_name,
+                  line, __FILE__, __LINE__);
+  }
   return -1;
 }
 
@@ -82,12 +86,27 @@ int StructFieldAccess::visit_expr(std::shared_ptr<ASTNode> &self) {
 
   auto *struct_lit = dynamic_cast<StructLiteral *>(struct_var.get());
   if (struct_lit) {
-    if (struct_lit->struct_type == StructType::STRUCT) {
-      struct_type = StructType::STRUCT;
+    if (struct_lit->type == VarType::STRUCT) {
+      struct_type = VarType::STRUCT;
       return visit_struct_expr(self, struct_lit);
-    } else {
-      struct_type = StructType::CLASS;
+    } else if (struct_lit->type == VarType::CLASS) {
+      struct_type = VarType::CLASS;
       return visit_class_expr(self, struct_lit);
+    } else if (struct_lit->type == VarType::INSTANCE) {
+      int ret = visit_struct_expr(self, struct_lit);
+      if (ret == 0) {
+        struct_type = VarType::INSTANCE;
+        return ret;
+      }
+      ret = visit_class_expr(self, struct_lit);
+      if (ret == 0) {
+        struct_type = VarType::CLASS;
+        return ret;
+      }
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                    "无法从实例访问字段: " + field_name, line, __FILE__,
+                    __LINE__);
+      return -1;
     }
   } else {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
@@ -253,7 +272,7 @@ int StructFieldAccess::gencode_struct_expr(VarType expected_type,
 
 int StructFieldAccess::gencode_expr(VarType expected_type,
                                     llvm::Value *&value) {
-  if (struct_type == StructType::CLASS) {
+  if (struct_type == VarType::CLASS) {
     return gencode_class_expr(expected_type, value);
   } else {
     return gencode_struct_expr(expected_type, value);

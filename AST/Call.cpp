@@ -28,10 +28,13 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &self,
                   __FILE__, __LINE__);
     return -1;
   }
-  self = std::make_shared<StructLiteral>(*class_node);
-  self->type = VarType::INSTANCE;
-  type = self->type;
-  instance = self;
+  instance = std::make_shared<StructLiteral>(*class_node);
+  instance->type = VarType::INSTANCE;
+  instance->functions.clear();
+  instance->attributes.clear();
+
+  type = instance->type;
+  self = instance;
   return 0;
 }
 
@@ -147,12 +150,19 @@ int Call::visit_prev_expr(
   
   if (struct_node->type == VarType::INSTANCE) {
     args.insert(args.begin(), struct_instance);
-    ret = visit_func_expr(self, struct_node->functions[name]);
+    auto instance_class_ast = lookup_struct(struct_node->name);
+    if (!instance_class_ast) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义类: " + struct_node->name, line,
+                    __FILE__, __LINE__);
+      return -1;
+    }
+    auto instance_class = std::dynamic_pointer_cast<StructLiteral>(instance_class_ast->node);
+    ret = visit_func_expr(self, instance_class->functions[name]);
     if (ret == -1) {
       return -1;
     }
-    auto value_ast =
-        std::make_shared<Variable>(ctx, name, struct_node->functions[name]->line);
+    auto value_ast = std::make_shared<Variable>(
+        ctx, name, instance_class->functions[name]->line);
     value_ast->set_parent(struct_node);
     struct_node->fields.push_back(
         std::make_pair(name, value_ast));

@@ -109,5 +109,7 @@ obj_a = AAA()
 print(obj_a.aaa_b)
 obj_a.aa()
 print(obj_a.aa())
-#value = bbb().b().c
+print(obj_a.var)
+obj_b = BBB()
+#print(obj_b.aa())
 #print(value)

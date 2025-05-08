@@ -1,13 +1,14 @@
 #pragma once
 #include "ASTNode.h"
 #include <iostream>
+#include "StructLiteral.h"
 
 class Call : public ASTNode {
 public:
     std::string name;
     std::vector<std::shared_ptr<ASTNode>> args;
     std::shared_ptr<ASTNode> forward_expr = nullptr;
-    std::shared_ptr<ASTNode> instance = nullptr;
+    std::shared_ptr<StructLiteral> instance = nullptr;
     std::shared_ptr<ASTNode> return_ast = nullptr;
 
     Call(Context &ctx, std::string n, std::vector<std::shared_ptr<ASTNode>> a,
