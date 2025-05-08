@@ -46,4 +46,9 @@ public:
     int gencode_call_expr(VarType expected_type, llvm::Value *&ret_value);
     int gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value);
     int gencode_func_expr(VarType expected_type, llvm::Function *lllvm_func, llvm::Value *&ret_value);
+
+    // Static method to find a function in a class hierarchy
+    static int get_instance_func(Context &ctx, ASTNode &node, std::string class_name, 
+                                std::string func_name, int line,
+                                std::shared_ptr<ASTNode> &ret_ast);
 }; 

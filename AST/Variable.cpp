@@ -2,6 +2,9 @@
 #include "TypeChecker.h"
 #include "ASTParser.h"
 #include "Common.h"
+#include "Call.h"
+#include "StructFieldAccess.h"
+#include "Function.h"
 
 int Variable::visit_stmt() {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "变量引用不能作为语句使用", line, __FILE__, __LINE__);
@@ -9,6 +12,19 @@ int Variable::visit_stmt() {
 }
 
 int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
+  if (parent && (parent->type == VarType::CLASS || parent->type == VarType::INSTANCE)) {
+    auto instance = dynamic_cast<StructLiteral *>(parent);
+    if (instance) {
+      std::shared_ptr<ASTNode> func_ast;
+      if (Call::get_instance_func(ctx, *this, instance->name, name, line,
+                                  func_ast) == 0) {
+        self = func_ast;
+        type = func_ast->type;
+        return 0;
+      }
+    }
+  }
+
   auto var_info = lookup_var(name, line);
   if (var_info) {
     // if (auto var_node = std::dynamic_pointer_cast<Variable>(var_info)) {
@@ -42,12 +58,9 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
   }
 
   if (!var_info && !func_info && !struct_info) {
+    print_backtrace();
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义的变量: " + name, line,
                   __FILE__, __LINE__);
-    throw std::runtime_error("未定义的变量: " + name +
-                              " source:" + std::to_string(line) +
-                              " file:" + std::string(__FILE__) +
-                              " line:" + std::to_string(__LINE__));
     return -1;
   }
     // print_backtrace();
@@ -145,6 +158,34 @@ int Variable::gencode_var_expr(Context &ctx, std::string name,
 }
 
 int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  // Check if this variable is a method on a class instance
+  if (parent && (parent->type == VarType::CLASS || parent->type == VarType::INSTANCE)) {
+    auto instance = dynamic_cast<StructLiteral *>(parent);
+    if (instance) {
+      std::shared_ptr<ASTNode> func_ast;
+      if (Call::get_instance_func(ctx, *this, instance->name, name, line, func_ast) == 0) {
+        auto func_node = std::dynamic_pointer_cast<Function>(func_ast);
+        if (func_node) {
+          auto func_info = func_node->lookup_func(name);
+          if (!func_info) {
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                          "类: " + instance->name + " 未定义方法: " + name, line, __FILE__,
+                          __LINE__);
+            return -1;
+          }
+          if (func_node->reference_count == 0) {
+            ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                          "函数: " + name + "未完成类型推导", line, __FILE__,
+                          __LINE__);
+            return -1;
+          }
+          value = func_info->llvm_func;
+          return 0;
+        }
+      }
+    }
+  }
+
   auto var_info = lookup_var(name, line);
   if (!var_info) {
     auto func_info = lookup_func(name);

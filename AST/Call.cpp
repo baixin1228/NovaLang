@@ -120,6 +120,31 @@ int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &self,
                 __FILE__, __LINE__);
   return -1;
 }
+int Call::get_instance_func(Context &ctx, ASTNode &node, std::string class_name, 
+                          std::string func_name, int line,
+                          std::shared_ptr<ASTNode> &ret_ast) {
+  while (true) {
+    auto instance_class_ast = node.lookup_struct(class_name);
+    if (!instance_class_ast) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义类: " + class_name,
+                    line, __FILE__, __LINE__);
+      return -1;
+    }
+    auto instance_class =
+        std::dynamic_pointer_cast<StructLiteral>(instance_class_ast->node);
+    auto func_ast = instance_class->functions.find(func_name);
+    if (func_ast != instance_class->functions.end()) {
+      ret_ast = func_ast->second;
+      return 0;
+    }
+    if (instance_class->class_parent_name.empty()) {
+      break;
+    }
+    class_name = instance_class->class_parent_name;
+  }
+
+  return -1;
+}
 
 int Call::visit_prev_expr(
     std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &ret_ast) {
@@ -150,19 +175,16 @@ int Call::visit_prev_expr(
   
   if (struct_node->type == VarType::INSTANCE) {
     args.insert(args.begin(), struct_instance);
-    auto instance_class_ast = lookup_struct(struct_node->name);
-    if (!instance_class_ast) {
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义类: " + struct_node->name, line,
-                    __FILE__, __LINE__);
+    ret = get_instance_func(ctx, *this, struct_node->name, name, line, ret_ast);
+    if (ret == -1) {
       return -1;
     }
-    auto instance_class = std::dynamic_pointer_cast<StructLiteral>(instance_class_ast->node);
-    ret = visit_func_expr(self, instance_class->functions[name]);
+    ret = visit_func_expr(self, ret_ast);
     if (ret == -1) {
       return -1;
     }
     auto value_ast = std::make_shared<Variable>(
-        ctx, name, instance_class->functions[name]->line);
+        ctx, name, ret_ast->line);
     value_ast->set_parent(struct_node);
     struct_node->fields.push_back(
         std::make_pair(name, value_ast));

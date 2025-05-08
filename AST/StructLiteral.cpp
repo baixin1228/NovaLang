@@ -153,7 +153,10 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   // 遍历字段计算总大小
   for (const auto &field : fields) {
     std::shared_ptr<ASTNode> field_ast;
-    field.second->visit_expr(field_ast);
+    int ret = field.second->visit_expr(field_ast);
+    if (ret == -1) {
+      return -1;
+    }
     VarType field_type = field_ast->type;
     if (field.second->type == VarType::FUNCTION) {
       field_type = VarType::FUNCTION;
