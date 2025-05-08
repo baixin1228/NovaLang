@@ -9,6 +9,7 @@
 #include "For.h"
 #include "StructLiteral.h"
 #include "While.h"
+#include "llvm/Support/Path.h"
 
 CodeGen::CodeGen(Context& ctx, bool debug) 
     : ctx(ctx),
@@ -18,7 +19,16 @@ CodeGen::CodeGen(Context& ctx, bool debug)
       generate_debug_info(debug) {
     
     ctx.llvm_context = std::make_unique<llvm::LLVMContext>();
-    ctx.module = std::make_unique<llvm::Module>("novalang", *ctx.llvm_context);
+    
+    // Get filename without path
+    llvm::StringRef full_path(ctx.get_source_filename());
+    llvm::StringRef filename = llvm::sys::path::filename(full_path);
+    
+    // Get filename without extension as module name
+    llvm::StringRef module_name = llvm::sys::path::stem(filename);
+    
+    ctx.module = std::make_unique<llvm::Module>(module_name.str(), *ctx.llvm_context);
+    ctx.module->setSourceFileName(filename.str());
     ctx.builder = std::make_unique<llvm::IRBuilder<>>(*ctx.llvm_context);
     // 初始化运行时管理器
     ctx.runtime_manager =
@@ -30,8 +40,7 @@ CodeGen::CodeGen(Context& ctx, bool debug)
     // 只有在需要生成调试信息时才初始化调试信息
     if (generate_debug_info) {
         dbg_builder = std::make_unique<llvm::DIBuilder>(*ctx.module);
-        source_filename = ctx.get_source_filename();
-        dbg_file = dbg_builder->createFile(source_filename, ".");
+        dbg_file = dbg_builder->createFile(ctx.get_source_filename(), ".");
         dbg_compile_unit = dbg_builder->createCompileUnit(
             llvm::dwarf::DW_LANG_C, 
             dbg_file, 
@@ -305,13 +314,53 @@ void CodeGen::compile_to_executable(std::string& output_filename, bool generate_
 
     // 如果不是生成汇编或目标文件，需要调用链接器生成可执行文件
     if (!generate_assembly && !generate_object) {
-        // 构建链接命令
-        std::string link_cmd = "ld -o " + output_filename + " " + obj_file;
+        // 查找gcc默认使用的crt文件路径
+        std::string gcc_lib_path_cmd = "gcc -print-file-name=crt1.o";
+        FILE* gcc_pipe = popen(gcc_lib_path_cmd.c_str(), "r");
+        char crt_path_buf[256] = {0};
+        if (fgets(crt_path_buf, sizeof(crt_path_buf), gcc_pipe) != nullptr) {
+            // 删除末尾的换行符
+            size_t len = strlen(crt_path_buf);
+            if (len > 0 && crt_path_buf[len-1] == '\n') {
+                crt_path_buf[len-1] = '\0';
+            }
+        }
+        pclose(gcc_pipe);
         
-        // 执行链接命令
-        int result = std::system(link_cmd.c_str());
+        // 获取crt文件所在目录
+        std::string crt_path(crt_path_buf);
+        size_t last_slash = crt_path.find_last_of('/');
+        std::string crt_dir = crt_path.substr(0, last_slash + 1);
+        
+        // 使用ld直接链接，但包含必要的启动文件
+        std::string link_cmd = "ld -o " + output_filename + " " + 
+                              crt_dir + "crt1.o " +
+                              crt_dir + "crti.o " +
+                              obj_file + " " +
+                              "-L" + crt_dir + " -L. " +
+                              "-lc -lnovalang_runtime " +
+                              "--dynamic-linker /lib64/ld-linux-x86-64.so.2 " +
+                              "-rpath \\$ORIGIN " +
+                              crt_dir + "crtn.o";
+        
+        // 使用popen捕获命令输出
+        std::string error_output;
+        FILE* pipe = popen((link_cmd + " 2>&1").c_str(), "r");
+        if (!pipe) {
+            ctx.add_error_front(ErrorHandler::ErrorLevel::Other, "无法执行链接命令", -1, __FILE__, __LINE__);
+            return;
+        }
+
+        char buffer[128];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            error_output += buffer;
+        }
+
+        int result = pclose(pipe);
         if (result != 0) {
-            ctx.add_error_front(ErrorHandler::ErrorLevel::Other, "链接失败", -1, __FILE__, __LINE__);
+            ctx.add_error_front(ErrorHandler::ErrorLevel::Other, 
+                "链接失败, 链接命令: " + link_cmd + "\n错误信息:\n" + error_output, 
+                -1, __FILE__, __LINE__);
             return;
         }
 

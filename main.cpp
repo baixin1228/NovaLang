@@ -146,14 +146,12 @@ int main(int argc, char* argv[]) {
       return -1;
     }
 
-    // if (enable_debug_mode) {
-    //   codegen.print_ir();
-    // }
+    if (enable_debug_mode) {
+      codegen.save_to_file(input_file.replace(input_file.find_last_of('.'),
+                                              input_file.length(), ".ll"));
+    }
 
     if (use_jit) {
-      if (enable_debug_mode) {
-        codegen.save_to_file(input_file.replace(input_file.find_last_of('.'), input_file.length(), ".ll"));
-      }
       codegen.execute();
       if (ctx.has_errors()) {
         ctx.print_errors();
@@ -164,7 +162,6 @@ int main(int argc, char* argv[]) {
         if (ctx.has_errors()) {
             if (enable_debug_mode) {
               parser.print_ast();
-              codegen.print_ir();
             }
             ctx.print_errors();
             return -1;
