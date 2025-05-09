@@ -25,6 +25,8 @@
 #include "AST/ListLiteral.h"
 #include "AST/StructFieldAccess.h"
 #include "AST/StructFieldAssign.h"
+#include "AST/IndexAccess.h"
+#include "AST/IndexAssign.h"
 #include <iostream>
 #include <memory>
 #include <string>
@@ -34,6 +36,21 @@
     while (current().type == TOK_NEWLINE) { \
         consume(TOK_NEWLINE, __FILE__, __LINE__); \
     }
+
+#define CONSUME_INDENT \
+  while (current().type == TOK_INDENT) {                                      \
+    consume(TOK_INDENT, __FILE__, __LINE__);                                  \
+  }
+
+#define CONSUME_DEDENT \
+  while (current().type == TOK_DEDENT) {                                      \
+    consume(TOK_DEDENT, __FILE__, __LINE__);                                  \
+  }
+
+#define CONSUME_NEW_LINE_AND_INDENT_DEDENT \
+    CONSUME_NEW_LINE; \
+    CONSUME_INDENT; \
+    CONSUME_DEDENT
 
 int ASTParser::parse() {
     int i = 0;
@@ -444,16 +461,23 @@ std::shared_ptr<ASTNode> ASTParser::parse_primary() {
         }
         
         // 判断是结构体还是字典
-        if (pos + 1 < tokens.size() && 
-            tokens[pos + 1].type == TOK_ID && 
-            pos + 2 < tokens.size() && 
-            tokens[pos + 2].type == TOK_ASSIGN) {
+        int start_pos = 1;
+        while (pos + start_pos < tokens.size() &&
+               (tokens[pos + start_pos].type == TOK_NEWLINE ||
+                tokens[pos + start_pos].type == TOK_INDENT ||
+                tokens[pos + start_pos].type == TOK_DEDENT)) {
+            start_pos++;
+        }
+        if (pos + start_pos < tokens.size() &&
+            tokens[pos + start_pos].type == TOK_ID && 
+            pos + start_pos + 1 < tokens.size() && 
+            tokens[pos + start_pos + 1].type == TOK_ASSIGN) {
             return parse_struct_literal();
-        } else if (pos + 1 < tokens.size() && 
-                  (tokens[pos + 1].type == TOK_STRING && pos + 2 < tokens.size() && tokens[pos + 2].type == TOK_COLON)) {
+        } else if (pos + start_pos < tokens.size() &&
+                  (tokens[pos + start_pos].type == TOK_STRING && pos + start_pos + 1 < tokens.size() && tokens[pos + start_pos + 1].type == TOK_COLON)) {
             return parse_dict_literal();
         } else {
-            throw std::runtime_error("Unexpected token: " + current().value + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
+            throw std::runtime_error("Unexpected token: " + token_type_to_string(current().type) + " source: " + std::to_string(current().line) + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
             return nullptr;
         }
     }
@@ -464,13 +488,14 @@ std::shared_ptr<ASTNode> ASTParser::parse_primary() {
                          "不支持空的方括号语法，请指定类型信息", 
                          current().line, __FILE__, __LINE__);
             // 消费tokens以继续解析
+            CONSUME_INDENT;
             consume(TOK_LBRACKET, __FILE__, __LINE__);
             consume(TOK_RBRACKET, __FILE__, __LINE__);
             return nullptr;
         }
         return parse_list_literal();
     }
-    throw std::runtime_error("Unexpected token: " + current().value + " source_line: " + std::to_string(current().line) + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
+    throw std::runtime_error("Unexpected token: " + token_type_to_string(current().type) + " source_line: " + std::to_string(current().line) + " line: " + std::to_string(__LINE__) + " file: " + __FILE__);
     return nullptr;
 }
 
@@ -503,9 +528,10 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
     int ln = current().line;
     consume(TOK_LBRACE, __FILE__, __LINE__);
     std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> fields;
-    
+
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
     // 不再处理空结构体，因为这已经在parse_primary中处理了
-    
+
     // 解析第一个字段
     if (current().type != TOK_ID) {
         ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
@@ -531,7 +557,9 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
         if (current().type == TOK_RBRACE) {
             break;
         }
-        
+
+        CONSUME_NEW_LINE_AND_INDENT_DEDENT;
+
         if (current().type != TOK_ID) {
             ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
                          "结构体字段名必须是标识符，得到: " + token_type_to_string(current().type), 
@@ -548,9 +576,10 @@ std::shared_ptr<ASTNode> ASTParser::parse_struct_literal() {
         }
         fields.emplace_back(field_name, std::move(field_value));
     }
-    
+
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
     consume(TOK_RBRACE, __FILE__, __LINE__);
-    
+
     // 创建结构体字面量，对于普通结构体，函数和属性为空
     std::vector<std::shared_ptr<ASTNode>> functions;
     std::vector<std::shared_ptr<ASTNode>> attributes;
@@ -574,11 +603,12 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
     consume(TOK_LBRACE, __FILE__, __LINE__);
     std::vector<std::pair<std::shared_ptr<ASTNode>, std::shared_ptr<ASTNode>>> items;
     
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
     // 不再处理空字典，因为这已经在parse_primary中处理了
     
     // 解析第一个键值对
     if (current().type != TOK_STRING) {
-        ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+        ctx.print_error(ErrorHandler::ErrorLevel::SYNTAX, 
                      "字典键必须是字符串字面量，得到: " + token_type_to_string(current().type), 
                      current().line, __FILE__, __LINE__);
         return nullptr;
@@ -591,6 +621,9 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
     consume(TOK_COLON, __FILE__, __LINE__);
     auto value = parse_expr();
     if (!value) {
+        ctx.print_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                     "字典值必须是表达式，得到: " + token_type_to_string(current().type), 
+                     current().line, __FILE__, __LINE__);
         return nullptr;
     }
     items.emplace_back(std::move(key), std::move(value));
@@ -598,14 +631,15 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
     // 解析剩余键值对
     while (current().type == TOK_COMMA) {
         consume(TOK_COMMA, __FILE__, __LINE__);
-        
+
+        CONSUME_NEW_LINE_AND_INDENT_DEDENT;
         // 处理结尾的逗号情况
         if (current().type == TOK_RBRACE) {
             break;
         }
-        
+
         if (current().type != TOK_STRING) {
-            ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+            ctx.print_error(ErrorHandler::ErrorLevel::SYNTAX, 
                          "字典键必须是字符串字面量，得到: " + token_type_to_string(current().type), 
                          current().line, __FILE__, __LINE__);
             return nullptr;
@@ -618,11 +652,15 @@ std::shared_ptr<ASTNode> ASTParser::parse_dict_literal() {
         consume(TOK_COLON, __FILE__, __LINE__);
         value = parse_expr();
         if (!value) {
+            ctx.print_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                         "字典值必须是表达式，得到: " + token_type_to_string(current().type), 
+                         current().line, __FILE__, __LINE__);
             return nullptr;
         }
         items.emplace_back(std::move(key), std::move(value));
     }
-    
+
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
     consume(TOK_RBRACE, __FILE__, __LINE__);
     return std::make_shared<DictLiteral>(ctx, std::move(items), ln);
 }
@@ -632,9 +670,9 @@ std::shared_ptr<ASTNode> ASTParser::parse_list_literal() {
     int ln = current().line;
     consume(TOK_LBRACKET, __FILE__, __LINE__);
     std::vector<std::shared_ptr<ASTNode>> elements;
-    
-    // 不再处理空列表，因为这已经在parse_primary中处理了
-    
+
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
+
     // 解析第一个元素
     auto element = parse_expr();
     if (!element) {
@@ -645,19 +683,21 @@ std::shared_ptr<ASTNode> ASTParser::parse_list_literal() {
     // 解析剩余元素
     while (current().type == TOK_COMMA) {
         consume(TOK_COMMA, __FILE__, __LINE__);
-        
         // 处理结尾的逗号情况
         if (current().type == TOK_RBRACKET) {
             break;
         }
-        
+        CONSUME_NEW_LINE_AND_INDENT_DEDENT;
+
         element = parse_expr();
         if (!element) {
             return nullptr;
         }
         elements.push_back(std::move(element));
     }
-    
+
+    CONSUME_NEW_LINE_AND_INDENT_DEDENT;
+
     consume(TOK_RBRACKET, __FILE__, __LINE__);
     return std::make_shared<ListLiteral>(ctx, std::move(elements), ln);
 }
@@ -787,25 +827,50 @@ std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln
         current_expr = std::make_shared<Variable>(ctx, id, ln);
     }
     
-    // Keep processing while we see dots
-    while (current().type == TOK_DOT) {
-        consume(TOK_DOT, __FILE__, __LINE__);
-        
-        if (current().type != TOK_ID) {
-            ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
-                         "字段访问后必须是标识符，得到: " + token_type_to_string(current().type), 
-                         current().line, __FILE__, __LINE__);
-            return nullptr;
+    // Keep processing as long as we see field access (.) or index access ([])
+    while (true) {
+        if (current().type == TOK_DOT) {
+            // 处理字段访问 obj.field
+            consume(TOK_DOT, __FILE__, __LINE__);
+            
+            if (current().type != TOK_ID) {
+                ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                             "Field access must be followed by an identifier, got: " + token_type_to_string(current().type), 
+                             current().line, __FILE__, __LINE__);
+                return nullptr;
+            }
+            
+            std::string field_name = current().value;
+            consume(TOK_ID, __FILE__, __LINE__);
+            
+            // Check if this is a method call
+            if (current().type == TOK_LPAREN) {
+                current_expr = parse_call(field_name, current_expr, ln);
+            } else {
+                current_expr = std::make_shared<StructFieldAccess>(ctx, std::move(current_expr), field_name, ln);
+            }
         }
-        
-        std::string field_name = current().value;
-        consume(TOK_ID, __FILE__, __LINE__);
-        
-        // Check if this is a method call
-        if (current().type == TOK_LPAREN) {
-            current_expr = parse_call(field_name, current_expr, ln);
-        } else {
-            current_expr = std::make_shared<StructFieldAccess>(ctx, std::move(current_expr), field_name, ln);
+        else if (current().type == TOK_LBRACKET) {
+            // 处理索引访问 arr[idx] 或 dict[key]
+            consume(TOK_LBRACKET, __FILE__, __LINE__);
+            
+            // 解析索引表达式
+            auto index_expr = parse_expr();
+            if (!index_expr) {
+                ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                             "Expected expression for index", 
+                             current().line, __FILE__, __LINE__);
+                return nullptr;
+            }
+            
+            consume(TOK_RBRACKET, __FILE__, __LINE__);
+            
+            // 创建索引访问节点
+            current_expr = std::make_shared<IndexAccess>(ctx, std::move(current_expr), std::move(index_expr), ln);
+        }
+        else {
+            // 如果不是 . 或 [ 则结束循环
+            break;
         }
     }
     
@@ -815,19 +880,28 @@ std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln
         auto value = parse_expr();
         CONSUME_NEW_LINE;
         
-        // If the current_expr is a StructFieldAccess, we need to create a StructFieldAssign
+        // 根据当前表达式的类型创建不同类型的赋值节点
         if (auto field_access = std::dynamic_pointer_cast<StructFieldAccess>(current_expr)) {
+            // 结构体字段赋值
             return std::make_shared<StructFieldAssign>(
-                ctx,
+                ctx, 
                 field_access->field_name, 
                 field_access->struct_expr,
                 std::move(value), 
                 ln);
-        } else {
-            // If it's a simple variable, create a regular assignment
-            if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
-                return std::make_shared<Assign>(ctx, var->name, std::move(value), ln);
-            }
+        } 
+        else if (auto index_access = std::dynamic_pointer_cast<IndexAccess>(current_expr)) {
+            // 索引赋值（数组或字典）
+            return std::make_shared<IndexAssign>(
+                ctx,
+                index_access->container,
+                index_access->index,
+                std::move(value),
+                ln);
+        }
+        else if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
+            // 变量赋值
+            return std::make_shared<Assign>(ctx, var->name, std::move(value), ln);
         }
     }
     
@@ -846,12 +920,12 @@ std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln
         auto value = parse_expr();
         CONSUME_NEW_LINE;
         
-        // Only allow compound assignments on simple variables for now
+        // 复合赋值目前只支持简单变量
         if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
             return std::make_shared<CompoundAssign>(ctx, var->name, op, std::move(value), ln);
         } else {
             ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
-                         "复合赋值运算符只能用于简单变量",
+                         "Compound assignment operators can only be used with simple variables",
                          ln, __FILE__, __LINE__);
             return nullptr;
         }
@@ -862,12 +936,12 @@ std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln
         consume(TOK_PLUSPLUS, __FILE__, __LINE__);
         CONSUME_NEW_LINE;
         
-        // Only allow increment on simple variables for now
+        // 自增只支持简单变量
         if (auto var = std::dynamic_pointer_cast<Variable>(current_expr)) {
             return std::make_shared<Increment>(ctx, var->name, ln);
         } else {
             ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX,
-                         "自增运算符只能用于简单变量",
+                         "Increment operator can only be used with simple variables",
                          ln, __FILE__, __LINE__);
             return nullptr;
         }

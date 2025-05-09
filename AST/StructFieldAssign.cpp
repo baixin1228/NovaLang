@@ -101,9 +101,9 @@ int StructFieldAssign::visit_stmt() {
   }
 }
 
-int StructFieldAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
+int StructFieldAssign::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   // For struct field assignment, result is the value expression's type
-  value->visit_expr(self);
+  value->visit_expr(expr_ret);
   return 0;
 }
 

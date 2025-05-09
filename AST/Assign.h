@@ -12,6 +12,9 @@ public:
     Assign(Context &ctx, std::string v, std::shared_ptr<ASTNode> val, int ln)
         : ASTNode(ctx, ln), var(v), value(std::move(val)), need_create(false),
           is_global(false) {
+            if (!value) {
+                throw std::runtime_error("Assign value is nullptr: " + var + " line: " + std::to_string(line));
+            }
             value->set_parent(this);
         }
 
@@ -22,7 +25,7 @@ public:
     }
 
     int visit_stmt() override;
-    int visit_expr(std::shared_ptr<ASTNode> &self) override;
+    int visit_expr(std::shared_ptr<ASTNode> &expr_ret) override;
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
     int gencode_var();

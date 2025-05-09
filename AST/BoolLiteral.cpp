@@ -8,9 +8,9 @@ int BoolLiteral::visit_stmt() {
   return -1;
 }
 
-int BoolLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+int BoolLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   type = VarType::BOOL;
-  self = shared_from_this();
+  expr_ret = shared_from_this();
   return 0;
 }
 

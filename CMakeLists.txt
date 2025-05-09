@@ -113,6 +113,8 @@ set(AST_SOURCES
     AST/ListLiteral.cpp
     AST/StructFieldAccess.cpp
     AST/StructFieldAssign.cpp
+    AST/IndexAccess.cpp
+    AST/IndexAssign.cpp
 )
 
 # 设置 CodeGen 源文件
@@ -126,6 +128,8 @@ find_package(ICU REQUIRED COMPONENTS uc i18n)
 
 # 编译运行时库
 add_library(novalang_runtime SHARED
+    Runtime/nova_list.c
+    Runtime/nova_dict.c
     Runtime/nova_string.c
     Runtime/nova_memory_manager.c
 )

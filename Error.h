@@ -36,6 +36,7 @@ private:
 
 public:
     void add_error(ErrorLevel level, const std::string& message, int line, const char* file, int call_line);
+    void print_error(ErrorLevel level, const std::string& message, int line, const char* file, int call_line);
     void add_error_front(ErrorLevel level, const std::string& message, int line, const char* file, int call_line);
 
     bool has_errors() const { return !errors.empty(); }

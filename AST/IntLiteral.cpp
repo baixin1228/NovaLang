@@ -6,9 +6,9 @@ int IntLiteral::visit_stmt() {
     return -1;
 }
 
-int IntLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+int IntLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   type = VarType::INT;
-  self = shared_from_this();
+  expr_ret = shared_from_this();
   return 0;
 } 
 

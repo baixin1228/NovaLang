@@ -67,6 +67,7 @@ int Lexer::tokenize(std::vector<Token> &tokens) {
             }
             if (pos >= input.size()) {
                 ctx.add_error(ErrorHandler::ErrorLevel::LEXICAL, "未闭合的字符串", line, __FILE__, __LINE__);
+                return -1;
             } else {
                 pos++; // Skip closing quote
                 tokens.emplace_back(TOK_STRING, str, line, true);
@@ -302,6 +303,8 @@ void Lexer::print_tokens(const std::vector<Token>& tokens) {
             std::cout << ", " << token.int_value;
         } else if (token.type == TOK_FLOAT) {
             std::cout << ", " << token.float_value;
+        } else if (token.type == TOK_STRING) {
+            std::cout << ", \"" << token.string_value << "\"";
         }
         std::cout << "\n";
     }

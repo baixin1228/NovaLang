@@ -54,12 +54,12 @@ std::string StructLiteral::generateTypeSignature(
 }
 
 int StructLiteral::visit_stmt() {
-  std::shared_ptr<ASTNode> self;
-  visit_expr(self);
+  std::shared_ptr<ASTNode> expr_ret;
+  visit_expr(expr_ret);
   return 0;
 }
 
-int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   // 遍历所有字段，确保每个字段的值都是有效的表达式，并执行类型推导
   if (visit_count == 0) {
     std::stringstream signature;
@@ -103,7 +103,7 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
     add_struct(name, struct_info);
   }
   visit_count++;
-  self = shared_from_this();
+  expr_ret = shared_from_this();
   return 0;
 }
 

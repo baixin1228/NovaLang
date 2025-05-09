@@ -2,46 +2,46 @@
 
 # Class with private, protected, and public members
 class User:
-    def __init__(self, username, password, email):
-        self.username = username          # Public
-        self._email = email               # Protected (convention)
-        self.__password = password        # Private
-        self.__login_attempts = 0         # Private counter
+    def __init__(expr_ret, username, password, email):
+        expr_ret.username = username          # Public
+        expr_ret._email = email               # Protected (convention)
+        expr_ret.__password = password        # Private
+        expr_ret.__login_attempts = 0         # Private counter
     
     # Public methods
-    def display_info(self):
-        print(f"Username: {self.username}")
-        print(f"Email: {self._email}")
+    def display_info(expr_ret):
+        print(f"Username: {expr_ret.username}")
+        print(f"Email: {expr_ret._email}")
         # Password is not displayed for security
     
-    def login(self, password):
-        self.__login_attempts += 1
-        if password == self.__password:
-            print(f"Welcome, {self.username}!")
-            self.__reset_login_attempts()
+    def login(expr_ret, password):
+        expr_ret.__login_attempts += 1
+        if password == expr_ret.__password:
+            print(f"Welcome, {expr_ret.username}!")
+            expr_ret.__reset_login_attempts()
             return True
         else:
             print("Incorrect password!")
-            if self.__login_attempts >= 3:
+            if expr_ret.__login_attempts >= 3:
                 print("Too many failed attempts. Account locked.")
             return False
     
-    def change_password(self, old_password, new_password):
-        if old_password == self.__password:
-            self.__password = new_password
+    def change_password(expr_ret, old_password, new_password):
+        if old_password == expr_ret.__password:
+            expr_ret.__password = new_password
             print("Password changed successfully!")
             return True
         else:
             print("Current password is incorrect!")
             return False
     
-    def get_login_attempts(self):
-        return self.__login_attempts
+    def get_login_attempts(expr_ret):
+        return expr_ret.__login_attempts
     
     # Protected method (convention)
-    def _update_email(self, new_email):
+    def _update_email(expr_ret, new_email):
         if "@" in new_email and "." in new_email:
-            self._email = new_email
+            expr_ret._email = new_email
             print("Email updated successfully!")
             return True
         else:
@@ -49,8 +49,8 @@ class User:
             return False
     
     # Private method
-    def __reset_login_attempts(self):
-        self.__login_attempts = 0
+    def __reset_login_attempts(expr_ret):
+        expr_ret.__login_attempts = 0
         print("Login attempts reset.")
 
 # Create a user
@@ -106,32 +106,32 @@ user.login("new_password")  # Should succeed with new password
 
 # Getter and Setter pattern
 class Temperature:
-    def __init__(self, celsius=0):
-        self.__celsius = celsius
+    def __init__(expr_ret, celsius=0):
+        expr_ret.__celsius = celsius
     
     # Getter for celsius
     @property
-    def celsius(self):
-        return self.__celsius
+    def celsius(expr_ret):
+        return expr_ret.__celsius
     
     # Setter for celsius
     @celsius.setter
-    def celsius(self, value):
+    def celsius(expr_ret, value):
         if value < -273.15:
             print("Temperature below absolute zero is not possible!")
-            self.__celsius = -273.15
+            expr_ret.__celsius = -273.15
         else:
-            self.__celsius = value
+            expr_ret.__celsius = value
     
     # Getter for fahrenheit
     @property
-    def fahrenheit(self):
-        return (self.__celsius * 9/5) + 32
+    def fahrenheit(expr_ret):
+        return (expr_ret.__celsius * 9/5) + 32
     
     # Setter for fahrenheit
     @fahrenheit.setter
-    def fahrenheit(self, value):
-        self.__celsius = (value - 32) * 5/9
+    def fahrenheit(expr_ret, value):
+        expr_ret.__celsius = (value - 32) * 5/9
 
 # Test getter and setter
 print("\n--- Getter and Setter ---")

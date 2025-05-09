@@ -49,7 +49,7 @@ int If::visit_stmt() {
     return 0;
 }
 
-int If::visit_expr(std::shared_ptr<ASTNode> &self) {
+int If::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                            "if 语句不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;

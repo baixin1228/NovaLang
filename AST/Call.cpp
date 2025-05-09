@@ -10,15 +10,15 @@
 #include <llvm-14/llvm/Support/raw_ostream.h>
 
 int Call::visit_stmt() {
-  std::shared_ptr<ASTNode> self_ast;
-  return visit_expr(self_ast);
+  std::shared_ptr<ASTNode> expr_ret_ast;
+  return visit_expr(expr_ret_ast);
 }
 
-int Call::visit_class_expr(std::shared_ptr<ASTNode> &self,
+int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> ast_node) {
   if (instance)
   {
-    self = instance;
+    expr_ret = instance;
     return 0;
   }
 
@@ -34,11 +34,11 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &self,
   instance->attributes.clear();
 
   type = instance->type;
-  self = instance;
+  expr_ret = instance;
   return 0;
 }
 
-int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
+int Call::visit_func_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> func_ast) {
   auto func_node = dynamic_cast<Function *>(func_ast.get());
   if (!func_node) {
@@ -80,17 +80,17 @@ int Call::visit_func_expr(std::shared_ptr<ASTNode> &self,
   func_node->reference_count++;
   func_node->visit_stmt();
 
-  self = func_node->return_ast;
-  if (self == nullptr) {
+  expr_ret = func_node->return_ast;
+  if (expr_ret == nullptr) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name,
                   line, __FILE__, __LINE__);
     return -1;
   }
-  type = self->type;
+  type = expr_ret->type;
   return 0;
 }
 
-int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &self,
+int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> ast_node) {
   if (!ast_node) {
     auto func_info = lookup_func(name);
@@ -110,10 +110,10 @@ int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &self,
     return -1;
   }
   if (ast_node->type == VarType::FUNCTION) {
-    return visit_func_expr(self, ast_node);
+    return visit_func_expr(expr_ret, ast_node);
   }
   if (ast_node->type == VarType::CLASS) {
-    return visit_class_expr(self, ast_node);
+    return visit_class_expr(expr_ret, ast_node);
   }
   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "非法访问，非函数或类类型: " + name
                 + " 类型: " + var_type_to_string(ast_node->type), line,
@@ -147,7 +147,7 @@ int Call::get_instance_func(Context &ctx, ASTNode &node, std::string class_name,
 }
 
 int Call::visit_prev_expr(
-    std::shared_ptr<ASTNode> &self, std::shared_ptr<ASTNode> &ret_ast) {
+    std::shared_ptr<ASTNode> &expr_ret, std::shared_ptr<ASTNode> &ret_ast) {
   if(return_ast)
   {
     ret_ast = return_ast;
@@ -179,7 +179,7 @@ int Call::visit_prev_expr(
     if (ret == -1) {
       return -1;
     }
-    ret = visit_func_expr(self, ret_ast);
+    ret = visit_func_expr(expr_ret, ret_ast);
     if (ret == -1) {
       return -1;
     }
@@ -203,19 +203,19 @@ int Call::visit_prev_expr(
   return 0;
 }
 
-int Call::visit_expr(std::shared_ptr<ASTNode> &self_ast) {
+int Call::visit_expr(std::shared_ptr<ASTNode> &expr_ret_ast) {
   // Check if this is a method call on an object
   if (forward_expr) {
     std::shared_ptr<ASTNode> ret_ast;
-    int ret = visit_prev_expr(self_ast, ret_ast);
+    int ret = visit_prev_expr(expr_ret_ast, ret_ast);
     if (ret == -1) {
       return -1;
     }
-    return visit_func_class_expr(self_ast, ret_ast);
+    return visit_func_class_expr(expr_ret_ast, ret_ast);
   }
 
   // Otherwise, treat it as a regular function call
-  return visit_func_class_expr(self_ast, nullptr);
+  return visit_func_class_expr(expr_ret_ast, nullptr);
 }
 
 int Call::gencode_stmt() {
@@ -275,8 +275,8 @@ int Call::gencode_call_expr(VarType expected_type, llvm::Value *&ret_value) {
 
 int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
   std::shared_ptr<ASTNode> ret_ast;
-  std::shared_ptr<ASTNode> self_ast;
-  int ret = visit_prev_expr(self_ast, ret_ast);
+  std::shared_ptr<ASTNode> expr_ret_ast;
+  int ret = visit_prev_expr(expr_ret_ast, ret_ast);
   if (ret == -1) {
     return -1;
     }

@@ -26,7 +26,7 @@ public:
     }
 
     int visit_stmt() override;
-    int visit_expr(std::shared_ptr<ASTNode> &self) override;
+    int visit_expr(std::shared_ptr<ASTNode> &expr_ret) override;
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
 }; 

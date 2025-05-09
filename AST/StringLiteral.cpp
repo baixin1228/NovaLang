@@ -90,9 +90,9 @@ int StringLiteral::visit_stmt() {
     return -1;
 }
 
-int StringLiteral::visit_expr(std::shared_ptr<ASTNode> &self) {
+int StringLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     type = VarType::STRING;
-    self = shared_from_this();
+    expr_ret = shared_from_this();
     return 0;
 }
 
@@ -104,11 +104,11 @@ int StringLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   const std::string &str_key = get_raw_str();
 
   // 检查字符串池中是否已存在
-  auto it = string_pool.find(str_key);
-  if (it != string_pool.end()) {
-    value = it->second; // 返回已存在的内存指针
-    return 0;
-  }
+//   auto it = string_pool.find(str_key);
+//   if (it != string_pool.end()) {
+//     value = it->second; // 返回已存在的内存指针
+//     return 0;
+//   }
 
   // 获取Unicode字符串
   const icu::UnicodeString &unicode_str = get_unicode();

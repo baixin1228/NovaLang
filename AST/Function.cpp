@@ -64,7 +64,7 @@ int Function::visit_stmt() {
   }
 }
 
-int Function::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Function::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     print_backtrace();
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数定义不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;

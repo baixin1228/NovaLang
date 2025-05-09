@@ -18,7 +18,7 @@ int Increment::visit_stmt() {
     return 0;
 }
 
-int Increment::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Increment::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     auto var_info = dynamic_cast<Variable*>(lookup_var(var, line)->node.get());
     if (var_info->type == VarType::NONE) {
         ctx.add_error(ErrorHandler::ErrorLevel::TYPE,

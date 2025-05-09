@@ -47,7 +47,7 @@ public:
 
   virtual void print(int level = 0) = 0;
   virtual int visit_stmt() = 0;
-  virtual int visit_expr(std::shared_ptr<ASTNode> &self) = 0;
+  virtual int visit_expr(std::shared_ptr<ASTNode> &expr_ret) = 0;
   virtual int gencode_stmt() = 0;
   virtual int gencode_expr(VarType expected_type, llvm::Value *&value) = 0;
   void set_parent(ASTNode *p);

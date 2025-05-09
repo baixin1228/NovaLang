@@ -10,7 +10,7 @@ int Global::visit_stmt() {
     return 0;
 }
 
-int Global::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Global::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "global语句不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;
 }

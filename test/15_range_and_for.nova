@@ -1,0 +1,163 @@
+# Test: Range and For Loops
+# This test file focuses on testing various usages of range function and for loops
+
+################################
+# 1. Basic Range Usage
+################################
+
+# Single parameter range(end)
+print("\n===== Single parameter range(5) =====")
+for i in range(5):
+    print("i =", i)
+# Expected output: 0, 1, 2, 3, 4
+
+# Two parameters range(start, end)
+print("\n===== Two parameters range(2, 6) =====")
+for i in range(2, 6):
+    print("i =", i)
+# Expected output: 2, 3, 4, 5
+
+# Three parameters range(start, end, step)
+print("\n===== Three parameters range(1, 10, 2) =====")
+for i in range(1, 10, 2):
+    print("i =", i)
+# Expected output: 1, 3, 5, 7, 9
+
+# Negative step
+print("\n===== Negative step range(10, 0, -2) =====")
+for i in range(10, 0, -2):
+    print("i =", i)
+# Expected output: 10, 8, 6, 4, 2
+
+# Using variables
+start = 5
+end = 10
+step = 1
+print("\n===== Using variables range(start, end, step) =====")
+for i in range(start, end, step):
+    print("i =", i)
+# Expected output: 5, 6, 7, 8, 9
+
+################################
+# 2. Typical Range Usage Scenarios
+################################
+
+# Summation
+print("\n===== Using range for summation =====")
+sum = 0
+for i in range(1, 6):
+    sum = sum + i
+print("1+2+3+4+5 =", sum)
+# Expected output: 15
+
+# Multiplication table
+print("\n===== Using range to generate multiplication table =====")
+for i in range(1, 5):
+    row = ""
+    for j in range(1, i+1):
+        row = row + str(i) + "*" + str(j) + "=" + str(i*j) + " "
+    print(row)
+
+# Building arrays
+print("\n===== Using range to build an array =====")
+squares = []
+for i in range(1, 6):
+    squares.append(i * i)
+print("Squares array:", squares)
+# Expected output: [1, 4, 9, 16, 25]
+
+# Countdown
+print("\n===== Using range for countdown =====")
+for i in range(5, 0, -1):
+    print(i)
+print("Launch!")
+
+################################
+# 3. Array Iteration with For Loops
+################################
+
+# Basic array iteration
+print("\n===== Basic array iteration =====")
+fruits = ["apple", "banana", "cherry", "date"]
+for fruit in fruits:
+    print("Fruit:", fruit)
+
+# Iterating and modifying array elements
+print("\n===== Iterating and modifying array elements =====")
+numbers = [1, 2, 3, 4, 5]
+for i in range(len(numbers)):
+    numbers[i] = numbers[i] * 2
+print("Doubled array:", numbers)
+# Expected output: [2, 4, 6, 8, 10]
+
+# Iterating over struct arrays
+print("\n===== Iterating over struct arrays =====")
+students = [
+    { name = "Zhang San", score = 85 },
+    { name = "Li Si", score = 92 },
+    { name = "Wang Wu", score = 78 }
+]
+
+for student in students:
+    print("Student:", student.name, "Score:", student.score)
+
+# Using indices for iteration
+print("\n===== Using indices for iteration =====")
+cities = ["Beijing", "Shanghai", "Guangzhou", "Shenzhen"]
+for i in range(len(cities)):
+    print("City", i, ":", cities[i])
+
+################################
+# 4. Combined Range and Array Operations
+################################
+
+# Multidimensional arrays with range
+print("\n===== Multidimensional arrays with range =====")
+matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+for i in range(3):
+    for j in range(3):
+        print("matrix[", i, "][", j, "] =", matrix[i][j])
+
+# Filtering operations
+print("\n===== Filtering operations =====")
+numbers = [10, 15, 20, 25, 30, 35, 40]
+even_numbers = []
+
+for num in numbers:
+    if num % 2 == 0:
+        even_numbers.append(num)
+
+print("Even numbers:", even_numbers)
+# Expected output: [10, 20, 30, 40]
+
+################################
+# 5. Edge Cases
+################################
+
+# Empty range
+print("\n===== Empty range =====")
+for i in range(0):
+    print("This will not be executed")
+print("Empty range loop ended")
+
+# Zero step (should cause an error)
+# Note: This should result in an error
+print("\n===== Zero step =====")
+try:
+    for i in range(1, 10, 0):
+        print("This will not be executed")
+except:
+    print("Zero step caused an error")
+
+# Large range
+print("\n===== Large range =====")
+count = 0
+for i in range(10000, 10010):
+    count = count + 1
+print("Large range loop executed", count, "times")
+# Expected output: 10 

@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#if DEBUG
+//#if DEBUG
 #define DEBUG_MEMORY
-#endif
+//#endif
 
 // 调试信息打印宏
 #ifdef DEBUG_MEMORY
@@ -183,7 +183,7 @@ int32_t nova_memory_retain(nova_memory_block* block) {
 
 void nova_memory_collect_garbage();
 
-  int32_t nova_memory_release(nova_memory_block * block) {
+int32_t nova_memory_release(nova_memory_block * block) {
     if (block == NULL) {
         DEBUG_PRINT("Attempt to release NULL block");
         return 0;

@@ -8,10 +8,10 @@ int Return::visit_stmt() {
     return visit_expr(value_ast);
 }
 
-int Return::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Return::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   if (value) {
-    int ret = value->visit_expr(self);
-    type = self->type;
+    int ret = value->visit_expr(expr_ret);
+    type = expr_ret->type;
     return ret;
   } else {
     throw std::runtime_error("返回值为空: " + std::to_string(line) + " " + std::string(__FILE__) + " " + std::to_string(__LINE__));

@@ -40,7 +40,20 @@ std::vector<std::string> RuntimeManager::getRuntimeFunctionNames() const {
         "nova_memory_retain",
         "nova_memory_release",
         "nova_memory_alloc",
-        "nova_memory_get_data"
+        "nova_memory_get_data",
+        // 字典相关函数
+        "nova_dict_new",
+        "nova_dict_set_str_int",
+        "nova_dict_set_str_float",
+        "nova_dict_set_str_bool",
+        "nova_dict_set_str_ptr",
+        "nova_dict_get_str_int",
+        "nova_dict_get_str_float",
+        "nova_dict_get_str_bool",
+        "nova_dict_get_str_ptr",
+        "nova_dict_to_string",
+        // 列表相关函数
+        "nova_list_to_string"
     };
 }
 
@@ -140,6 +153,136 @@ llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) 
         };
         return llvm::FunctionType::get(
             memory_block_ptr_type,  // return type: nova_memory_block*
+            params,
+            false
+        );
+    }
+    // 字典相关函数
+    else if (name == "nova_dict_new") {
+        std::vector<llvm::Type*> params = {
+            builder.getInt8Ty(),  // uint8_t key_type
+            builder.getInt8Ty()   // uint8_t value_type
+        };
+        return llvm::FunctionType::get(
+            memory_block_ptr_type,  // return type: nova_memory_block*
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_set_str_int") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            builder.getInt64Ty()    // int64_t value
+        };
+        return llvm::FunctionType::get(
+            builder.getVoidTy(),  // return type: void
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_set_str_float") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            builder.getDoubleTy()   // double value
+        };
+        return llvm::FunctionType::get(
+            builder.getVoidTy(),  // return type: void
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_set_str_bool") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            builder.getInt1Ty()     // bool value
+        };
+        return llvm::FunctionType::get(
+            builder.getVoidTy(),  // return type: void
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_set_str_ptr") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            memory_block_ptr_type   // void* value (实际为nova_memory_block*)
+        };
+        return llvm::FunctionType::get(
+            builder.getVoidTy(),  // return type: void
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_get_str_int") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            llvm::PointerType::get(builder.getInt64Ty(), 0)  // int64_t* value_out
+        };
+        return llvm::FunctionType::get(
+            builder.getInt1Ty(),  // return type: bool
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_get_str_float") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            llvm::PointerType::get(builder.getDoubleTy(), 0)  // double* value_out
+        };
+        return llvm::FunctionType::get(
+            builder.getInt1Ty(),  // return type: bool
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_get_str_bool") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            llvm::PointerType::get(builder.getInt1Ty(), 0)  // bool* value_out
+        };
+        return llvm::FunctionType::get(
+            builder.getInt1Ty(),  // return type: bool
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_get_str_ptr") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dict
+            memory_block_ptr_type,  // nova_memory_block* key
+            llvm::PointerType::get(memory_block_ptr_type, 0)  // void** value_out
+        };
+        return llvm::FunctionType::get(
+            builder.getInt1Ty(),  // return type: bool
+            params,
+            false
+        );
+    }
+    else if (name == "nova_dict_to_string") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type  // nova_memory_block* dict
+        };
+        return llvm::FunctionType::get(
+            builder.getInt8PtrTy(),  // return type: char*
+            params,
+            false
+        );
+    }
+    // 列表相关函数
+    else if (name == "nova_list_to_string") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* list
+            builder.getInt32Ty()    // int32_t elem_type
+        };
+        return llvm::FunctionType::get(
+            builder.getInt8PtrTy(),  // return type: char*
             params,
             false
         );

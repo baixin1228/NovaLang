@@ -52,6 +52,11 @@ public:
                  int line, const char* file, int call_line);
   void add_error_front(ErrorHandler::ErrorLevel level, const std::string &msg,
                  int line, const char* file, int call_line);
+  void print_error(ErrorHandler::ErrorLevel level, const std::string &msg,
+                 int line, const char* file, int call_line)
+                 {
+                  errors.print_error(level, msg, line, file, call_line);
+                 }
   bool has_errors() const;
   void print_errors() const;
 

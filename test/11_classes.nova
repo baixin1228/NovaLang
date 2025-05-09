@@ -3,18 +3,18 @@
 # Basic class definition
 class Person:
     # Constructor
-    def __init__(self, name, age):
-        self.name = name
-        self.age = age
+    def __init__(expr_ret, name, age):
+        expr_ret.name = name
+        expr_ret.age = age
     
     # Method
-    def greet(self):
-        print("Hello, my name is", self.name)
+    def greet(expr_ret):
+        print("Hello, my name is", expr_ret.name)
     
     # Method with parameters
-    def celebrate_birthday(self):
-        self.age += 1
-        print(self.name, "is now", self.age, "years old")
+    def celebrate_birthday(expr_ret):
+        expr_ret.age += 1
+        print(expr_ret.name, "is now", expr_ret.age, "years old")
 
 # Create instances
 person1 = Person("Alice", 30)
@@ -31,17 +31,17 @@ person1.celebrate_birthday()
 
 # Inheritance
 class Student(Person):
-    def __init__(self, name, age, student_id):
+    def __init__(expr_ret, name, age, student_id):
         super().__init__(name, age)
-        self.student_id = student_id
+        expr_ret.student_id = student_id
     
     # Override method
-    def greet(self):
-        print("Hi, I'm", self.name, "and my student ID is", self.student_id)
+    def greet(expr_ret):
+        print("Hi, I'm", expr_ret.name, "and my student ID is", expr_ret.student_id)
     
     # Additional method
-    def study(self, subject):
-        print(self.name, "is studying", subject)
+    def study(expr_ret, subject):
+        print(expr_ret.name, "is studying", subject)
 
 # Create student instance
 student1 = Student("Charlie", 20, "S12345")
@@ -51,19 +51,19 @@ student1.study("Computer Science")
 
 # Class with properties
 class Rectangle:
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
+    def __init__(expr_ret, width, height):
+        expr_ret.width = width
+        expr_ret.height = height
     
     # Property (getter)
     #@property
-    def area(self):
-        return self.width * self.height
+    def area(expr_ret):
+        return expr_ret.width * expr_ret.height
     
     # Method
-    def resize(self, width, height):
-        self.width = width
-        self.height = height
+    def resize(expr_ret, width, height):
+        expr_ret.width = width
+        expr_ret.height = height
 
 rect = Rectangle(5, 3)
 print("Rectangle: width =", rect.width, "height =", rect.height)
@@ -86,29 +86,29 @@ rect.resize(10, 4)
 
 # Private attributes
 class BankAccount:
-    #def __init__(self, owner, balance=0):
-    def __init__(self, owner, balance):
-        self.owner = owner
-        self.__balance = balance  # Private attribute
+    #def __init__(expr_ret, owner, balance=0):
+    def __init__(expr_ret, owner, balance):
+        expr_ret.owner = owner
+        expr_ret.__balance = balance  # Private attribute
     
-    def deposit(self, amount):
+    def deposit(expr_ret, amount):
         if amount > 0:
-            self.__balance += amount
+            expr_ret.__balance += amount
             print("Deposited", amount)
-            print("New balance:", self.__balance)
+            print("New balance:", expr_ret.__balance)
         else:
             print("Invalid deposit amount")
     
-    def withdraw(self, amount):
-        if 0 < amount <= self.__balance:
-            self.__balance -= amount
+    def withdraw(expr_ret, amount):
+        if 0 < amount <= expr_ret.__balance:
+            expr_ret.__balance -= amount
             print("Withdrew", amount)
-            print("New balance:", self.__balance)
+            print("New balance:", expr_ret.__balance)
         else:
             print("Invalid withdrawal amount")
     
-    def get_balance(self):
-        return self.__balance
+    def get_balance(expr_ret):
+        return expr_ret.__balance
 
 account = BankAccount("David", 1000)
 account.deposit(500)

@@ -9,7 +9,7 @@ int Assign::visit_stmt() {
   return visit_expr(value_ret);
 }
 
-int Assign::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Assign::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   std::shared_ptr<ASTNode> value_ret;
   int ret = value->visit_expr(value_ret);
   if (ret == -1) {
@@ -49,7 +49,7 @@ int Assign::visit_expr(std::shared_ptr<ASTNode> &self) {
     }
   }
   type = value_ret->type;
-  self = value_ret;
+  expr_ret = value_ret;
   return 0;
 }
 
@@ -152,7 +152,11 @@ int Assign::gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info,
   }
 
   // 如果是STRING类型（nova_memory_block），调用引用计数增加函数
-  if (var_type == VarType::STRING) {
+  if (var_type == VarType::STRING || 
+  var_type == VarType::INSTANCE ||
+  var_type == VarType::STRUCT ||
+  var_type == VarType::DICT ||
+  var_type == VarType::LIST) {
     // 先获取内存管理函数
     auto retain_func =
         value->ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");

@@ -9,7 +9,7 @@ int StructFieldAccess::visit_stmt() {
   return visit_expr(ret_ast);
 }
 
-int StructFieldAccess::visit_struct_expr(std::shared_ptr<ASTNode> &self,
+int StructFieldAccess::visit_struct_expr(std::shared_ptr<ASTNode> &expr_ret,
                                          StructLiteral *struct_lit) {
 
   std::shared_ptr<ASTNode> struct_var = nullptr;
@@ -34,13 +34,13 @@ int StructFieldAccess::visit_struct_expr(std::shared_ptr<ASTNode> &self,
     if (field_struct) {
       struct_signature = field_struct->name;
     }
-    self = struct_var;
+    expr_ret = struct_var;
     type = struct_var->type;
   }
   return 0;
 }
 
-int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &self,
+int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                                         StructLiteral *struct_lit) {
 
   std::shared_ptr<ASTNode> attr_return = nullptr;
@@ -51,7 +51,7 @@ int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &self,
     if (field_struct) {
       struct_signature = field_struct->name;
     }
-    self = attr_var->node;
+    expr_ret = attr_var->node;
     type = attr_var->node->type;
     return 0;
   }
@@ -66,7 +66,7 @@ int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &self,
     if (field_struct) {
       struct_signature = field_struct->name;
     }
-    self = attr_return;
+    expr_ret = attr_return;
     type = attr_return->type;
     return 0;
   }
@@ -77,7 +77,7 @@ int StructFieldAccess::visit_class_expr(std::shared_ptr<ASTNode> &self,
   return -1;
 }
 
-int StructFieldAccess::visit_expr(std::shared_ptr<ASTNode> &self) {
+int StructFieldAccess::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   // Check if struct_expr is a direct variable reference
   std::shared_ptr<ASTNode> struct_var = nullptr;
   if (struct_expr->visit_expr(struct_var) != 0) {
@@ -88,17 +88,17 @@ int StructFieldAccess::visit_expr(std::shared_ptr<ASTNode> &self) {
   if (struct_lit) {
     if (struct_lit->type == VarType::STRUCT) {
       struct_type = VarType::STRUCT;
-      return visit_struct_expr(self, struct_lit);
+      return visit_struct_expr(expr_ret, struct_lit);
     } else if (struct_lit->type == VarType::CLASS) {
       struct_type = VarType::CLASS;
-      return visit_class_expr(self, struct_lit);
+      return visit_class_expr(expr_ret, struct_lit);
     } else if (struct_lit->type == VarType::INSTANCE) {
-      int ret = visit_struct_expr(self, struct_lit);
+      int ret = visit_struct_expr(expr_ret, struct_lit);
       if (ret == 0) {
         struct_type = VarType::INSTANCE;
         return ret;
       }
-      ret = visit_class_expr(self, struct_lit);
+      ret = visit_class_expr(expr_ret, struct_lit);
       if (ret == 0) {
         struct_type = VarType::CLASS;
         return ret;

@@ -50,8 +50,8 @@ def leibniz_pi(n_terms):
         pi += tmp
         sign = sign * -1
 
-    #ss = "mem free test"
-    #print(ss)
+    ss = "mem free test"
+    print(ss)
     print("pi:", pi)
     return 4 * pi
 
@@ -76,6 +76,7 @@ print("ptr test:", struct1.b)
 struct1.c(100)
 print("test_f:", struct1.c(100).f)
 print("test_f:", struct1.c(100).c().f)
+approx_pi = leibniz_pi(n_terms)
 struct1.c(100).h(100)
 leibniz_pi(100)
 approx_pi = leibniz_pi(n_terms)
@@ -89,8 +90,8 @@ print(s, approx_pi, struct3.a3.a2.a, struct1.b)
 
 class AAA:
     aaa_b = 123
-    def aa(self):
-        self.var = 112
+    def aa(expr_ret):
+        expr_ret.var = 112
         c = 0
         print(c)
         return 0
@@ -102,7 +103,7 @@ bbb = aaa
 print(bbb.aaa_b)
 
 class BBB(AAA):
-    def bb(self):
+    def bb(expr_ret):
         return AAA()
 
 obj_a = AAA()

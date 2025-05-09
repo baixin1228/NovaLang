@@ -24,7 +24,7 @@ int While::visit_stmt() {
     return 0;
 }
 
-int While::visit_expr(std::shared_ptr<ASTNode> &self) {
+int While::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "while 循环不能作为表达式使用", line, __FILE__, __LINE__);
     return -1;
 }

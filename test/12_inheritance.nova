@@ -2,39 +2,39 @@
 
 # Base class
 class Animal:
-    def __init__(self, name, species):
-        self.name = name
-        self.species = species
+    def __init__(expr_ret, name, species):
+        expr_ret.name = name
+        expr_ret.species = species
     
-    def make_sound(self):
+    def make_sound(expr_ret):
         print("Some generic animal sound")
     
-    def describe(self):
-        print(f"I am {self.name}, a {self.species}")
+    def describe(expr_ret):
+        print(f"I am {expr_ret.name}, a {expr_ret.species}")
 
 # Derived class 1
 class Dog(Animal):
-    def __init__(self, name, breed):
+    def __init__(expr_ret, name, breed):
         super().__init__(name, "Dog")
-        self.breed = breed
+        expr_ret.breed = breed
     
-    def make_sound(self):
+    def make_sound(expr_ret):
         print("Woof!")
     
-    def fetch(self):
-        print(f"{self.name} is fetching a ball!")
+    def fetch(expr_ret):
+        print(f"{expr_ret.name} is fetching a ball!")
 
 # Derived class 2
 class Cat(Animal):
-    def __init__(self, name, color):
+    def __init__(expr_ret, name, color):
         super().__init__(name, "Cat")
-        self.color = color
+        expr_ret.color = color
     
-    def make_sound(self):
+    def make_sound(expr_ret):
         print("Meow!")
     
-    def hunt(self):
-        print(f"{self.name} is hunting mice!")
+    def hunt(expr_ret):
+        print(f"{expr_ret.name} is hunting mice!")
 
 # Create instances
 animal = Animal("Generic Animal", "Unknown")
@@ -72,42 +72,42 @@ animal_sounds(animals)
 
 # Multiple inheritance
 class Bird(Animal):
-    def __init__(self, name, can_fly=True):
+    def __init__(expr_ret, name, can_fly=True):
         super().__init__(name, "Bird")
-        self.can_fly = can_fly
+        expr_ret.can_fly = can_fly
     
-    def make_sound(self):
+    def make_sound(expr_ret):
         print("Tweet!")
     
-    def fly(self):
-        if self.can_fly:
-            print(f"{self.name} is flying high!")
+    def fly(expr_ret):
+        if expr_ret.can_fly:
+            print(f"{expr_ret.name} is flying high!")
         else:
-            print(f"{self.name} cannot fly!")
+            print(f"{expr_ret.name} cannot fly!")
 
 class Pet:
-    def __init__(self, owner):
-        self.owner = owner
+    def __init__(expr_ret, owner):
+        expr_ret.owner = owner
     
-    def get_owner(self):
-        print(f"Owner: {self.owner}")
+    def get_owner(expr_ret):
+        print(f"Owner: {expr_ret.owner}")
 
 # Multiple inheritance
 class Parrot(Bird, Pet):
-    def __init__(self, name, owner, vocabulary=None):
-        Bird.__init__(self, name)
-        Pet.__init__(self, owner)
-        self.vocabulary = vocabulary or []
+    def __init__(expr_ret, name, owner, vocabulary=None):
+        Bird.__init__(expr_ret, name)
+        Pet.__init__(expr_ret, owner)
+        expr_ret.vocabulary = vocabulary or []
     
-    def speak(self):
-        if not self.vocabulary:
-            print(f"{self.name} has nothing to say.")
+    def speak(expr_ret):
+        if not expr_ret.vocabulary:
+            print(f"{expr_ret.name} has nothing to say.")
         else:
-            print(f"{self.name} says: {', '.join(self.vocabulary)}")
+            print(f"{expr_ret.name} says: {', '.join(expr_ret.vocabulary)}")
     
-    def learn(self, word):
-        self.vocabulary.append(word)
-        print(f"{self.name} learned to say: {word}")
+    def learn(expr_ret, word):
+        expr_ret.vocabulary.append(word)
+        print(f"{expr_ret.name} learned to say: {word}")
 
 # Create a parrot
 parrot = Parrot("Rio", "Emma", ["Hello", "Good morning"])

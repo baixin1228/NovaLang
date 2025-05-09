@@ -1,0 +1,200 @@
+# Test: Arrays and Dictionaries
+# This test file focuses on testing various usages of arrays and dictionaries
+# Including simple types, struct types and nested data structures
+
+################################
+# 1. Simple Type Arrays
+################################
+
+# Integer array
+int_array = [1, 2, 3, 4, 5]
+print("Integer array:", int_array)
+
+# Float array
+float_array = [1.1, 2.2, 3.3, 4.4, 5.5]
+print("Float array:", float_array)
+
+# Boolean array
+bool_array = [True, False, True, True, False]
+print("Boolean array:", bool_array)
+
+# String array
+string_array = ["apple", "banana", "cherry", "date", "elderberry"]
+print("String array:", string_array)
+
+# Array index access
+print("int_array[0] =", int_array[0])
+print("int_array[4] =", int_array[4])
+print("string_array[2] =", string_array[2])
+
+# Modifying array elements
+int_array[2] = 30
+print("Modified array:", int_array)
+
+# Array operations (if supported)
+# Adding elements
+#int_array.append(6)
+#print("After append:", int_array)
+
+# Removing elements
+#int_array.remove(4)
+#print("After removal:", int_array)
+
+################################
+# 2. Struct Arrays
+################################
+
+# Create simple person structs
+person1 = { name = "John", age = 30, role = "Developer" }
+person2 = { name = "Alice", age = 25, role = "Designer" }
+person3 = { name = "Bob", age = 35, role = "Manager" }
+
+# Array of structs
+people = [person1, person2, person3]
+print("First person:", people[0].name, people[0].age)
+print("Second person:", people[1].name, people[1].role)
+
+# Directly creating struct arrays
+teams = [
+    { name = "Team A", score = 10, active = True },
+    { name = "Team B", score = 8, active = True },
+    { name = "Team C", score = 12, active = False }
+]
+
+print("teams[2].name =", teams[2].name)
+print("teams[0].score =", teams[0].score)
+
+# Modifying struct array elements
+teams[1].score = 15
+print("Modified score:", teams[1].score)
+
+################################
+# 3. Nested Arrays
+################################
+
+# 2D integer array (matrix)
+matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print("matrix[1][1] =", matrix[1][1])
+print("First row:", matrix[0])
+
+# 3D array
+cube = [
+    [[1, 2], [3, 4]],
+    [[5, 6], [7, 8]]
+]
+
+print("cube[1][0][1] =", cube[1][0][1])  # Should be 6
+
+# Array in struct
+school = {
+    name = "Nova School",
+    departments = [
+        "Computer Science",
+        "Mathematics",
+        "Physics"
+    ],
+    students_per_dept = [120, 85, 67]
+}
+
+print("School name:", school.name)
+print("Second department:", school.departments[1])
+print("Students in third department:", school.students_per_dept[2])
+
+# Array containing different types of arrays
+mixed_arrays = [
+    [1, 2, 3, 4],
+    [1.1, 2.2, 3.3],
+    [True, False, True]
+]
+
+print("First sub-array:", mixed_arrays[0])
+print("Second element of second sub-array:", mixed_arrays[1][1])
+
+################################
+# 4. Dictionaries
+################################
+
+# Simple dictionary
+simple_dict = {
+    "key1": "value1",
+    "key2": "value2",
+    "key3": "value3"
+}
+
+print("dictionary:", simple_dict)
+print("simple_dict[\"key2\"] =", simple_dict["key2"])
+
+# Mixed type dictionary
+#mixed_dict = {
+#    "name": "Test Dictionary",
+#    "value": 42,
+#    "ratio": 3.14,
+#    "valid": True
+#}
+
+#print("mixed_dict[\"name\"] =", mixed_dict["name"])
+#print("mixed_dict[\"value\"] =", mixed_dict["value"])
+
+# Modifying dictionary values
+#mixed_dict["value"] = 100
+#print("Modified value:", mixed_dict["value"])
+
+# Dictionary of struct arrays
+user_dict = {
+    "admin": { name = "Admin User", level = 10, active = True },
+    "guest": { name = "Guest User", level = 1, active = True },
+    "moderator": { name = "Mod User", level = 5, active = False }
+}
+
+print("admin name:", user_dict["admin"].name)
+print("guest level:", user_dict["guest"].level)
+
+# Array of dictionaries
+config_dicts = [
+    { theme = "dark", font_size = 12 },
+    { theme = "light", font_size = 14 },
+    { theme = "custom", font_size = 16 }
+]
+
+print("Theme of second config:", config_dicts[1].theme)
+print("Font size of third config:", config_dicts[2].font_size)
+
+################################
+# 5. Complex Nested Structures
+################################
+
+# Complex nested data structure
+project = {
+    name = "Nova Project",
+    version = "1.0.0",
+    is_active = True,
+    contributors = [
+        { name = "Zhang San", commits = 120, areas = ["Frontend", "Documentation"] },
+        { name = "Li Si", commits = 200, areas = ["Backend", "Testing"] },
+        { name = "Wang Wu", commits = 80, areas = ["Design", "Documentation"] }
+    ],
+    modules = {
+        "core": { files = 15, loc = 2000, tests = 30 },
+        "ui": { files = 22, loc = 3500, tests = 45 },
+        "api": { files = 10, loc = 1500, tests = 25 }
+    },
+    timeline = [
+        { phase = "Planning", months = 2, milestones = ["Requirements", "Design"] },
+        { phase = "Development", months = 6, milestones = ["Prototype", "Alpha", "Beta"] },
+        { phase = "Testing", months = 3, milestones = ["Alpha Testing", "Beta Testing", "RC"] }
+    ]
+}
+
+# Accessing complex structure
+print("Project name:", project.name)
+print("Second contributor:", project.contributors[1].name)
+print("Commits of second contributor:", project.contributors[1].commits)
+print("First area of second contributor:", project.contributors[1].areas[0])
+print("Tests in UI module:", project.modules["ui"].tests)
+print("Third phase:", project.timeline[2].phase)
+print("Second milestone of third phase:", project.timeline[2].milestones[1]) 

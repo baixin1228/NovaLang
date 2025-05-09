@@ -6,7 +6,7 @@ int UnaryOp::visit_stmt() {
     return -1;
 }
 
-int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
+int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     std::shared_ptr<ASTNode> operand_ast;
     int ret = expr->visit_expr(operand_ast);
     if (ret == -1) {
@@ -18,7 +18,7 @@ int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
                              "not 运算符需要 bool 类型，得到: " + var_type_to_string(operand_ast->type), line, __FILE__, __LINE__);
             return -1;
         }
-        self = shared_from_this();
+        expr_ret = shared_from_this();
         type = VarType::BOOL;
         return 0;
     }

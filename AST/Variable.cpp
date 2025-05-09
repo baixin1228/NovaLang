@@ -11,14 +11,14 @@ int Variable::visit_stmt() {
     return -1;
 }
 
-int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
+int Variable::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   if (parent && (parent->type == VarType::CLASS || parent->type == VarType::INSTANCE)) {
     auto instance = dynamic_cast<StructLiteral *>(parent);
     if (instance) {
       std::shared_ptr<ASTNode> func_ast;
       if (Call::get_instance_func(ctx, *this, instance->name, name, line,
                                   func_ast) == 0) {
-        self = func_ast;
+        expr_ret = func_ast;
         type = func_ast->type;
         return 0;
       }
@@ -28,11 +28,11 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
   auto var_info = lookup_var(name, line);
   if (var_info) {
     // if (auto var_node = std::dynamic_pointer_cast<Variable>(var_info)) {
-      // var_node->visit_expr(self);
-      // type = self->type;
+      // var_node->visit_expr(expr_ret);
+      // type = expr_ret->type;
     // } else {
       type = var_info->node->type;
-      self = var_info->node;
+      expr_ret = var_info->node;
     // }
     if (var_info->node->type == VarType::NONE) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义变量类型: " + name,
@@ -44,8 +44,8 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
   if(!var_info) {
     func_info = lookup_func(name);
     if (func_info) {
-      self = func_info->node;
-      type = self->type;
+      expr_ret = func_info->node;
+      type = expr_ret->type;
     }
   }
   std::shared_ptr<ClassInfo> struct_info = nullptr;
@@ -53,7 +53,7 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &self) {
     struct_info = lookup_struct(name);
     if (struct_info) {
       type = struct_info->node->type;
-      self = struct_info->node;
+      expr_ret = struct_info->node;
     }
   }
 

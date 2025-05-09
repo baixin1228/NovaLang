@@ -873,9 +873,9 @@ int BinOp::gen_logical_or(VarType expected_type, llvm::Value*& ret_value) {
   return 0;
 }
 
-int BinOp::visit_expr(std::shared_ptr<ASTNode> &self) {
+int BinOp::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
   // 分发到不同的运算符处理函数
-  self = shared_from_this();
+  expr_ret = shared_from_this();
   if (op == "==" || op == "!=") {
     return handle_equality_op();
   }

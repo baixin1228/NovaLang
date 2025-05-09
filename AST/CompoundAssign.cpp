@@ -34,7 +34,7 @@ int CompoundAssign::visit_stmt() {
     return 0;
 }
 
-int CompoundAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
+int CompoundAssign::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
     std::shared_ptr<ASTNode> value_ast;
     int ret = value->visit_expr(value_ast);
     if (ret == -1) {
@@ -57,7 +57,7 @@ int CompoundAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
       return -1;
     }
 
-    self = shared_from_this();
+    expr_ret = shared_from_this();
     type = var_info->node->type;
     return 0;
 }
