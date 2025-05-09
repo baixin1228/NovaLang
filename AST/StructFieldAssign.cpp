@@ -107,7 +107,8 @@ int StructFieldAssign::visit_expr(std::shared_ptr<ASTNode> &self) {
   return 0;
 }
 
-int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
+int StructFieldAssign::gencode_struct_expr(StructLiteral *struct_ast,
+                                           llvm::Value *&ret_value) {
   // Get struct pointer - this could be a nested structure
   llvm::Value *struct_val = nullptr;
   if (struct_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
@@ -117,10 +118,7 @@ int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
   }
 
   // Get the value
-  std::shared_ptr<ASTNode> value_ast;
-  value->visit_expr(value_ast);
-  llvm::Value *value_val = nullptr;
-  if (value->gencode_expr(value_ast->type, value_val) != 0) {
+  if (value->gencode_expr(value->type, ret_value) != 0) {
     return -1;
   }
 
@@ -147,19 +145,19 @@ int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
   case VarType::INT: {
     auto field_ptr = ctx.builder->CreateBitCast(
         field_ptr_ptr, llvm::PointerType::get(ctx.builder->getInt64Ty(), 0));
-    ctx.builder->CreateStore(value_val, field_ptr);
+    ctx.builder->CreateStore(ret_value, field_ptr);
     break;
   }
   case VarType::FLOAT: {
     auto field_ptr = ctx.builder->CreateBitCast(
         field_ptr_ptr, llvm::PointerType::get(ctx.builder->getDoubleTy(), 0));
-    ctx.builder->CreateStore(value_val, field_ptr);
+    ctx.builder->CreateStore(ret_value, field_ptr);
     break;
   }
   case VarType::BOOL: {
     auto field_ptr = ctx.builder->CreateBitCast(
         field_ptr_ptr, llvm::PointerType::get(ctx.builder->getInt1Ty(), 0));
-    ctx.builder->CreateStore(value_val, field_ptr);
+    ctx.builder->CreateStore(ret_value, field_ptr);
     break;
   }
   case VarType::STRING:
@@ -172,13 +170,12 @@ int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
             llvm::PointerType::get(
                 ctx.runtime_manager->getNovaMemoryBlockType(), 0),
             0));
-    ctx.builder->CreateStore(value_val, field_ptr);
+    ctx.builder->CreateStore(ret_value, field_ptr);
     break;
   }
   default:
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "不支持的结构体字段类型: " +
-                      var_type_to_string(value_ast->type),
+                  "不支持的结构体字段类型: " + var_type_to_string(field_type),
                   line, __FILE__, __LINE__);
     return -1;
   }
@@ -188,10 +185,11 @@ int StructFieldAssign::gencode_struct_stmt(StructLiteral *struct_ast) {
   return 0;
 }
 
-int StructFieldAssign::gencode_class_stmt(StructLiteral *class_ast) {
+int StructFieldAssign::gencode_class_expr(StructLiteral *class_ast,
+                                          llvm::Value *&ret_value) {
   auto var_info = class_ast->lookup_var(field_name, -1);
   if (var_info) {
-    return Assign::gencode_assign(field_name, var_info, value);
+    return Assign::gencode_assign(field_name, var_info, value, ret_value);
   }
   throw std::runtime_error("未定义的类属性: " + field_name + " code:"
    + std::to_string(line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
@@ -199,6 +197,11 @@ int StructFieldAssign::gencode_class_stmt(StructLiteral *class_ast) {
 }
 
 int StructFieldAssign::gencode_stmt() {
+  llvm::Value *ret_value = nullptr;
+  return gencode_expr(VarType::NONE, ret_value);
+}
+
+int StructFieldAssign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
   // Validate structure expression
   std::shared_ptr<ASTNode> prev_ast;
   if (struct_expr->visit_expr(prev_ast) != 0) {
@@ -208,9 +211,9 @@ int StructFieldAssign::gencode_stmt() {
   auto struct_ast = dynamic_cast<StructLiteral *>(prev_ast.get());
   if (struct_ast) {
     if (struct_ast->type == VarType::CLASS) {
-      return gencode_class_stmt(struct_ast);
+      return gencode_class_expr(struct_ast, ret_value);
     } else {
-      return gencode_struct_stmt(struct_ast);
+      return gencode_struct_expr(struct_ast, ret_value);
     }
   } else {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
@@ -219,9 +222,4 @@ int StructFieldAssign::gencode_stmt() {
                   line, __FILE__, __LINE__);
     return -1;
   }
-}
-
-int StructFieldAssign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
-  // Return the value for expression context
-  return value->gencode_expr(expected_type, ret_value);
 }

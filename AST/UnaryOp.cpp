@@ -16,7 +16,9 @@ int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
         if (operand_ast->type != VarType::BOOL) {
             ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
                              "not 运算符需要 bool 类型，得到: " + var_type_to_string(operand_ast->type), line, __FILE__, __LINE__);
+            return -1;
         }
+        self = shared_from_this();
         type = VarType::BOOL;
         return 0;
     }
@@ -24,7 +26,10 @@ int UnaryOp::visit_expr(std::shared_ptr<ASTNode> &self) {
     return -1;
 } 
 
-int UnaryOp::gencode_stmt() { return 0; }
+int UnaryOp::gencode_stmt() {
+  ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "一元运算不能作为语句使用", line, __FILE__, __LINE__);
+  return -1;
+}
 
 int UnaryOp::gencode_expr(VarType expected_type, llvm::Value *&value) {
   llvm::Value *expr_val = nullptr;

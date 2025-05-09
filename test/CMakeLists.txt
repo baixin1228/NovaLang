@@ -11,7 +11,7 @@ function(add_nova_test TEST_FILE)
     add_test(
         NAME ${TEST_NAME}
         COMMAND ${CMAKE_COMMAND} -E env NOVAHOME=${CMAKE_BINARY_DIR} 
-                ${CMAKE_BINARY_DIR}/nova -D ${TEST_FILE}
+                ${CMAKE_BINARY_DIR}/nova -j -D ${TEST_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
     
@@ -26,7 +26,7 @@ function(add_nova_test TEST_FILE)
     # Add custom target to run this test individually
     add_custom_target(run_${TEST_NAME}
         COMMAND ${CMAKE_COMMAND} -E env NOVAHOME=${CMAKE_BINARY_DIR}
-                ${CMAKE_BINARY_DIR}/nova -D ${TEST_FILE}
+                ${CMAKE_BINARY_DIR}/nova -j -D ${TEST_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Running ${TEST_NAME} test..."
     )
@@ -60,7 +60,7 @@ foreach(TEST_FILE ${NOVA_TEST_FILES})
     add_custom_command(
         TARGET capture_expected_output
         COMMAND ${CMAKE_COMMAND} -E env NOVAHOME=${CMAKE_BINARY_DIR}
-                ${CMAKE_BINARY_DIR}/nova -D ${TEST_FILE} > 
+                ${CMAKE_BINARY_DIR}/nova -j -D ${TEST_FILE} > 
                 ${CMAKE_CURRENT_SOURCE_DIR}/expected/${TEST_NAME}.txt
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Capturing output for ${TEST_NAME}..."

@@ -15,5 +15,5 @@ if [ "$1" == "run" ]; then
     make -j$(nproc) && ./nova -j -D ../$2
 fi
 if [ "$1" == "build" ]; then
-    make -j$(nproc) && ./nova -D ../$2
+    make -j$(nproc) && ./nova -D ../$2 && ./a.out
 fi

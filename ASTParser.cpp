@@ -99,7 +99,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         std::string id = current().value;
         int ln = current().line;
         consume(TOK_ID, __FILE__, __LINE__);
-        return parse_variable_and_field_access(id, ln);
+        return parse_token_id(id, ln);
     }
     if (current().type == TOK_GLOBAL) {
         return parse_global();
@@ -419,103 +419,10 @@ std::shared_ptr<ASTNode> ASTParser::parse_primary() {
         return std::make_shared<BoolLiteral>(ctx, false, cur.line);
     }
     
-    // 处理 super 关键字
-    if (cur.type == TOK_SUPER) {
-        int line = cur.line;
-        consume(TOK_SUPER, __FILE__, __LINE__);
-        
-        // 创建一个表示 super 的变量
-        auto super_var = std::make_shared<Variable>(ctx, "super", line);
-        
-        // 检查是否是方法调用 super()
-        if (current().type == TOK_LPAREN) {
-            // 处理 super() 调用
-            consume(TOK_LPAREN, __FILE__, __LINE__);
-            
-            // 解析可能的参数
-            std::vector<std::shared_ptr<ASTNode>> args;
-            if (current().type != TOK_RPAREN) {
-                do {
-                    auto arg = parse_expr();
-                    if (!arg) {
-                        return nullptr;
-                    }
-                    args.push_back(arg);
-                    
-                    if (current().type != TOK_COMMA) {
-                        break;
-                    }
-                    consume(TOK_COMMA, __FILE__, __LINE__);
-                } while (true);
-            }
-            
-            consume(TOK_RPAREN, __FILE__, __LINE__);
-            
-            // 创建一个super()调用
-            auto super_call = std::make_shared<Call>(ctx, "super", args, nullptr, line);
-            
-            // 检查是否有后续的方法调用 super().__init__()
-            if (current().type == TOK_DOT) {
-                // Use StructFieldAccess instead of AttributeAccess
-                consume(TOK_DOT, __FILE__, __LINE__);
-                std::string method_name = current().value;
-                consume(TOK_ID, __FILE__, __LINE__);
-                if (current().type == TOK_LPAREN) {
-                    return parse_call(method_name, super_call, line);
-                } else {
-                    return std::make_shared<StructFieldAccess>(ctx, std::move(super_call), method_name, line);
-                }
-            }
-            
-            return super_call;
-        }
-        
-        // 检查是否有后续的属性访问 super.attr
-        if (current().type == TOK_DOT) {
-            // Use StructFieldAccess instead of AttributeAccess
-            consume(TOK_DOT, __FILE__, __LINE__);
-            std::string field_name = current().value;
-            consume(TOK_ID, __FILE__, __LINE__);
-            if (current().type == TOK_LPAREN) {
-                return parse_call(field_name, super_var, line);
-            } else {
-                return std::make_shared<StructFieldAccess>(ctx, std::move(super_var), field_name, line);
-            }
-        }
-        
-        return super_var;
-    }
-    
-    // 处理 self 关键字，现在作为普通标识符
-    if (cur.type == TOK_ID && cur.value == "self") {
-        consume(TOK_ID, __FILE__, __LINE__);
-        // 创建一个表示 self 的变量
-        auto self_var = std::make_shared<Variable>(ctx, "self", cur.line);
-        
-        // 检查是否紧跟着有点号，如果有则解析结构体字段访问
-        if (current().type == TOK_DOT) {
-            consume(TOK_DOT, __FILE__, __LINE__);
-            std::string field_name = current().value;
-            consume(TOK_ID, __FILE__, __LINE__);
-            if (current().type == TOK_LPAREN) {
-                return parse_call(field_name, self_var, cur.line);
-            } else {
-                return std::make_shared<StructFieldAccess>(ctx, std::move(self_var), field_name, cur.line);
-            }
-        }
-        
-        return self_var;
-    }
-    
     if (cur.type == TOK_ID) {
         std::string name = cur.value;
         consume(TOK_ID, __FILE__, __LINE__);
-        
-        if (current().type == TOK_LPAREN) {
-            return parse_call(name, nullptr, cur.line);
-        }
-        
-        return std::make_shared<Variable>(ctx, name, cur.line);
+        return parse_token_id(name, cur.line);
     }
     
     if (cur.type == TOK_LPAREN) {
@@ -871,7 +778,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
     );
 }
 
-std::shared_ptr<ASTNode> ASTParser::parse_variable_and_field_access(const std::string& id, int ln) {
+std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln) {
     // Initialize current_expr based on whether it's a function call or variable
     std::shared_ptr<ASTNode> current_expr;
     if (current().type == TOK_LPAREN) {
@@ -911,7 +818,7 @@ std::shared_ptr<ASTNode> ASTParser::parse_variable_and_field_access(const std::s
         // If the current_expr is a StructFieldAccess, we need to create a StructFieldAssign
         if (auto field_access = std::dynamic_pointer_cast<StructFieldAccess>(current_expr)) {
             return std::make_shared<StructFieldAssign>(
-                ctx, 
+                ctx,
                 field_access->field_name, 
                 field_access->struct_expr,
                 std::move(value), 

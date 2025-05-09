@@ -30,7 +30,7 @@ public:
     int visit_struct_stmt(StructLiteral *struct_ast);
     int visit_class_stmt(StructLiteral *class_ast);
     int gencode_stmt() override;
-    int gencode_struct_stmt(StructLiteral *struct_ast);
-    int gencode_class_stmt(StructLiteral *class_ast);
+    int gencode_struct_expr(StructLiteral *struct_ast, llvm::Value *&ret_value);
+    int gencode_class_expr(StructLiteral *class_ast, llvm::Value *&ret_value);
     int gencode_expr(VarType expected_type, llvm::Value *&value) override;
 }; 

@@ -25,7 +25,7 @@ int Print::gencode_stmt() {
 
   // 遍历所有要打印的值
   for (const auto &expr : values) {
-    std::shared_ptr<ASTNode> value_ast;
+    std::shared_ptr<ASTNode> value_ast = nullptr;
     llvm::Value* value = nullptr;
     if (expr->gencode_expr(VarType::NONE, value) == -1) {
       // 处理错误
@@ -33,6 +33,10 @@ int Print::gencode_stmt() {
     }
     
     expr->visit_expr(value_ast);
+    if (!value_ast) {
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "print 参数推导失败", line, __FILE__, __LINE__);
+      return -1;
+    }
 
     // 根据类型添加对应的格式化字符串
     switch (value_ast->type) {

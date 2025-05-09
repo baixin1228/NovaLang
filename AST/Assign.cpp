@@ -18,7 +18,7 @@ int Assign::visit_expr(std::shared_ptr<ASTNode> &self) {
   if (!value_ret) {
     ctx.print_errors();
     throw std::runtime_error(
-        "未返回ASTNode: " + var + " source:" + std::to_string(line) +
+        "值表达式未返回ASTNode: " + var + " source:" + std::to_string(line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
   }
   auto var_info = std::make_shared<VarInfo>();
@@ -49,6 +49,7 @@ int Assign::visit_expr(std::shared_ptr<ASTNode> &self) {
     }
   }
   type = value_ret->type;
+  self = value_ret;
   return 0;
 }
 
@@ -131,7 +132,8 @@ int Assign::gencode_var() {
 }
 
 int Assign::gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info,
-                           std::shared_ptr<ASTNode> value) {
+                           std::shared_ptr<ASTNode> value,
+                           llvm::Value *&ret_value) {
   if (!var_info->llvm_obj) {
     throw std::runtime_error(
         "变量未完成初始化: " + name + " code:" + std::to_string(var_info->line) +
@@ -139,12 +141,11 @@ int Assign::gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info,
   }
 
   VarType var_type = var_info->node->type;
-  llvm::Value *llvm_value = nullptr;
-  int ret = value->gencode_expr(var_type, llvm_value);
+  int ret = value->gencode_expr(var_type, ret_value);
   if (ret == -1) {
     return -1;
   }
-  if (!llvm_value) {
+  if (!ret_value) {
     throw std::runtime_error(
         "变量未生成ir: " + name + " code:" + std::to_string(var_info->line) +
         " file:" + std::string(__FILE__) + " line:" + std::to_string(__LINE__));
@@ -162,15 +163,20 @@ int Assign::gencode_assign(std::string name, std::shared_ptr<VarInfo> var_info,
     }
 
     // 调用引用计数增加函数
-    value->ctx.builder->CreateCall(retain_func, {llvm_value});
+    value->ctx.builder->CreateCall(retain_func, {ret_value});
   }
 
-  auto str = value->ctx.builder->CreateStore(llvm_value, var_info->llvm_obj);
+  auto str = value->ctx.builder->CreateStore(ret_value, var_info->llvm_obj);
   str->setAlignment(llvm::Align(get_type_align(var_type)));
   return 0;
 }
 
 int Assign::gencode_stmt() {
+  llvm::Value *ret_value = nullptr;
+  return gencode_expr(VarType::NONE, ret_value);
+}
+
+int Assign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
   gencode_var();
   auto var_info = lookup_var(var, line);
   if (!var_info) {
@@ -181,11 +187,5 @@ int Assign::gencode_stmt() {
   if (var_info->node->type == VarType::CLASS) {
     return 0;
   }
-  return gencode_assign(var, var_info, value);
-}
-
-int Assign::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
-  // The assignment expression itself should return the assigned value.
-  // We get the value from the 'value' node.
-  return value->gencode_expr(expected_type, ret_value);
+  return gencode_assign(var, var_info, value, ret_value);
 }
