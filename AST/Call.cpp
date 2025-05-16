@@ -1,4 +1,5 @@
 #include "Call.h"
+#include "Common.h"
 #include "Context.h"
 #include "Function.h"
 #include "If.h"
@@ -25,6 +26,11 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
   auto class_node = dynamic_cast<StructLiteral *>(ast_node.get());
   if (!class_node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "非法访问，非类类型: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  if (class_node->is_abstract) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "抽象类不能实例化: " + name, line,
                   __FILE__, __LINE__);
     return -1;
   }
@@ -120,13 +126,14 @@ int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                 __FILE__, __LINE__);
   return -1;
 }
+
 int Call::get_instance_func(Context &ctx, ASTNode &node, std::string class_name, 
                           std::string func_name, int line,
                           std::shared_ptr<ASTNode> &ret_ast) {
   while (true) {
     auto instance_class_ast = node.lookup_struct(class_name);
     if (!instance_class_ast) {
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义类: " + class_name,
+      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义类: [" + class_name + "]",
                     line, __FILE__, __LINE__);
       return -1;
     }

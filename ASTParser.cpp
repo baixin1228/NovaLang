@@ -27,6 +27,8 @@
 #include "AST/StructFieldAssign.h"
 #include "AST/IndexAccess.h"
 #include "AST/IndexAssign.h"
+#include "AST/Annotation.h"
+#include "AST/NoOp.h"
 #include <iostream>
 #include <memory>
 #include <string>
@@ -72,6 +74,12 @@ int ASTParser::parse() {
 
 std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
     CONSUME_NEW_LINE;
+    
+    // 处理注解
+    if (current().type == TOK_AT) {
+        return parse_annotation();
+    }
+    
     if (current().type == TOK_DEF) {
         return parse_function();
     }
@@ -93,6 +101,13 @@ std::shared_ptr<ASTNode> ASTParser::parse_stmt() {
         auto value = parse_expr();
         CONSUME_NEW_LINE;
         return std::make_shared<Return>(ctx, std::move(value), ln);
+    }
+    if (current().type == TOK_PASS) {
+        int ln = current().line;
+        consume(TOK_PASS, __FILE__, __LINE__);
+        CONSUME_NEW_LINE;
+        // 创建一个NoOp节点表示pass语句
+        return std::make_shared<NoOp>(ctx, ln);
     }
     if (current().type == TOK_PRINT) {
         int ln = current().line;
@@ -783,6 +798,18 @@ std::shared_ptr<ASTNode> ASTParser::parse_class() {
                 if (func) {
                     functions.push_back(func);
                 }
+            } else if (current().type == TOK_AT) {
+                // 解析注解，注解的目标会被直接返回
+                auto annotated_node = parse_annotation();
+                if (annotated_node) {
+                    // 如果注解的目标是函数，添加到函数列表
+                    if (std::dynamic_pointer_cast<Function>(annotated_node)) {
+                        functions.push_back(annotated_node);
+                    } else {
+                        // 对于其他类型的注解目标，先添加到属性列表中
+                        attributes.push_back(annotated_node);
+                    }
+                }
             } else {
                 // 解析属性
                 if (current().type == TOK_ID) {
@@ -948,5 +975,66 @@ std::shared_ptr<ASTNode> ASTParser::parse_token_id(const std::string& id, int ln
     }
     
     return current_expr;
+}
+
+// 添加 parse_annotation 方法
+std::shared_ptr<ASTNode> ASTParser::parse_annotation() {
+    int ln = current().line;
+    consume(TOK_AT, __FILE__, __LINE__);
+    
+    // 获取注解名称
+    std::string name = current().value;
+    consume(TOK_ID, __FILE__, __LINE__);
+    
+    // 处理注解参数（如果有的话）
+    std::vector<std::shared_ptr<ASTNode>> args;
+    if (current().type == TOK_LPAREN) {
+        consume(TOK_LPAREN, __FILE__, __LINE__);
+        
+        // 解析参数列表
+        if (current().type != TOK_RPAREN) {
+            args.push_back(parse_expr());
+            while (current().type == TOK_COMMA) {
+                consume(TOK_COMMA, __FILE__, __LINE__);
+                args.push_back(parse_expr());
+            }
+        }
+        
+        consume(TOK_RPAREN, __FILE__, __LINE__);
+    }
+    
+    // 创建注解节点
+    auto annotation = std::make_shared<Annotation>(ctx, name, std::move(args), ln);
+    
+    // 跳过换行符
+    CONSUME_NEW_LINE;
+    
+    // 解析被注解的目标
+    auto target = parse_stmt();
+    if (!target) {
+        ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                     "注解必须应用于有效的语句", 
+                     ln, __FILE__, __LINE__);
+        return nullptr;
+    }
+    
+    // 将注解添加到目标中，而不是将目标设置为注解的子节点
+    if (auto func = std::dynamic_pointer_cast<Function>(target)) {
+        func->annotations.push_back(annotation);
+        return func;
+    } else if (auto class_node = std::dynamic_pointer_cast<StructLiteral>(target)) {
+        // 如果需要支持类注解，可以添加相应处理
+        // class_node->annotations.push_back(annotation);
+        ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                     "目前不支持类注解", 
+                     ln, __FILE__, __LINE__);
+        return target;
+    } else {
+        ctx.add_error(ErrorHandler::ErrorLevel::SYNTAX, 
+                     "不支持此类型的注解目标", 
+                     ln, __FILE__, __LINE__);
+        // 尽管不支持，但仍然返回目标，保持程序继续执行
+        return target;
+    }
 }
 

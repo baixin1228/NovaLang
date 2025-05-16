@@ -1,8 +1,10 @@
 #include "Function.h"
+#include "Annotation.h"
 #include "Common.h"
 #include "Return.h"
 #include "TypeChecker.h"
 #include "ASTParser.h"
+#include "NoOp.h"
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <memory>
@@ -16,6 +18,30 @@ int Function::visit_stmt() {
   if (parent && parent->type == VarType::CLASS) {
     type_str = "method";
   }
+  
+  for (auto& annotation : annotations) {
+    // 这里可以添加对特定注解的特殊处理
+    // 比如 @abstractmethod 可以标记函数需要被子类实现
+    if (annotation->name == "abstractmethod") {
+      is_abstract = true;
+      std::cout << "Function: " << name << " is marked as abstract method [行 " << line << "]\n";
+      
+      // 检查是否只包含pass语句
+      bool only_has_pass = false;
+      if (body.size() == 1) {
+        auto noop = std::dynamic_pointer_cast<NoOp>(body[0]);
+        if (noop) {
+          only_has_pass = true;
+        }
+      }
+      
+      // 对于抽象方法，如果只包含pass语句，认为是正确的抽象方法实现
+      if (only_has_pass) {
+        return 0;
+      }
+    }
+  }
+  
   // 标准函数处理逻辑
   if (reference_count == 1) {
     std::cout << "function visit_stmt 1: " << name << " type:" << type_str << " line:" << line << std::endl;
@@ -46,7 +72,9 @@ int Function::visit_stmt() {
         return_ast = stmt_node->value;
       }
     }
-    if (return_ast == nullptr) {
+    
+    // 检查是否有返回值，对于抽象方法可以没有返回值（只包含pass语句）
+    if (return_ast == nullptr && !is_abstract) {
       throw std::runtime_error("函数没有返回值: " + name + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值", line, __FILE__, __LINE__);
       return -1;
@@ -186,108 +214,108 @@ int Function::gencode_stmt() {
     //     );
     //     llvm_func->setSubprogram(dbg_func);
 
-    //     // 添加调试位置
-    //     auto debug_loc =
-    //         llvm::DILocation::get(*ctx.llvm_context, func.line, 0, dbg_func);
-    //     ctx.builder->SetCurrentDebugLocation(debug_loc);
-    // }
+  //     // 添加调试位置
+  //     auto debug_loc =
+  //         llvm::DILocation::get(*ctx.llvm_context, func.line, 0, dbg_func);
+  //     ctx.builder->SetCurrentDebugLocation(debug_loc);
+  // }
 
-    auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", llvm_func);
-    ctx.builder->SetInsertPoint(block);
-    ctx.current_function = llvm_func;
+  auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", llvm_func);
+  ctx.builder->SetInsertPoint(block);
+  ctx.current_function = llvm_func;
 
-    size_t i = 0;
-    for (auto& arg : llvm_func->args()) {
-        auto& param = params[i].first;
-        auto param_type = params[i].second->type;
-        if (param_type == VarType::NONE) {
+  size_t i = 0;
+  for (auto& arg : llvm_func->args()) {
+      auto& param = params[i].first;
+      auto param_type = params[i].second->type;
+      if (param_type == VarType::NONE) {
+        throw std::runtime_error("未知参数类型: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+        return -1;
+      }
+
+      llvm::AllocaInst *alloc;
+      switch (param_type) {
+        case VarType::INT:
+          alloc = ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, param);     
+          alloc->setAlignment(llvm::Align(get_type_align(param_type)));
+          break;
+        case VarType::FLOAT:
+          alloc = ctx.builder->CreateAlloca(ctx.builder->getDoubleTy(), nullptr, param);
+          alloc->setAlignment(llvm::Align(get_type_align(param_type)));
+          break;
+        case VarType::BOOL:
+          alloc = ctx.builder->CreateAlloca(ctx.builder->getInt1Ty(), nullptr, param);
+          alloc->setAlignment(llvm::Align(get_type_align(param_type)));
+          break;
+        case VarType::INSTANCE:
+          alloc = ctx.builder->CreateAlloca(
+              llvm::PointerType::get(
+                  ctx.runtime_manager->getNovaMemoryBlockType(), 0),
+              nullptr, param);
+          alloc->setAlignment(llvm::Align(get_type_align(param_type)));
+          break;
+        default:
           throw std::runtime_error("未知参数类型: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
           return -1;
-        }
+          break;
+      }
 
-        llvm::AllocaInst *alloc;
-        switch (param_type) {
-          case VarType::INT:
-            alloc = ctx.builder->CreateAlloca(ctx.builder->getInt64Ty(), nullptr, param);     
-            alloc->setAlignment(llvm::Align(get_type_align(param_type)));
-            break;
-          case VarType::FLOAT:
-            alloc = ctx.builder->CreateAlloca(ctx.builder->getDoubleTy(), nullptr, param);
-            alloc->setAlignment(llvm::Align(get_type_align(param_type)));
-            break;
-          case VarType::BOOL:
-            alloc = ctx.builder->CreateAlloca(ctx.builder->getInt1Ty(), nullptr, param);
-            alloc->setAlignment(llvm::Align(get_type_align(param_type)));
-            break;
-          case VarType::INSTANCE:
-            alloc = ctx.builder->CreateAlloca(
-                llvm::PointerType::get(
-                    ctx.runtime_manager->getNovaMemoryBlockType(), 0),
-                nullptr, param);
-            alloc->setAlignment(llvm::Align(get_type_align(param_type)));
-            break;
-          default:
-            throw std::runtime_error("未知参数类型: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
-            return -1;
-            break;
-        }
+      auto str = ctx.builder->CreateStore(&arg, alloc);
+      str->setAlignment(llvm::Align(get_type_align(param_type)));
+      auto param_info = lookup_var(param, line);
+      if (!param_info) {
+        throw std::runtime_error("未定义参数: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+        return -1;
+      }
+      std::cout << "==== Generating params variable: " << param
+                << " line:" << params[i].second->line << " ====" << std::endl;
+      param_info->llvm_obj = alloc;
+      ++i;
+  }
 
-        auto str = ctx.builder->CreateStore(&arg, alloc);
-        str->setAlignment(llvm::Align(get_type_align(param_type)));
-        auto param_info = lookup_var(param, line);
-        if (!param_info) {
-          throw std::runtime_error("未定义参数: " + param + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
-          return -1;
-        }
-        std::cout << "==== Generating params variable: " << param
-                  << " line:" << params[i].second->line << " ====" << std::endl;
-        param_info->llvm_obj = alloc;
-        ++i;
+  for (auto& stmt : body) {
+    if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+      assign->gencode_var();
     }
-
-    for (auto& stmt : body) {
-      if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-        assign->gencode_var();
-      }
-      if (auto *iff = dynamic_cast<If *>(stmt.get())) {
-        for (auto &stmt : iff->body) {
-          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            assign->gencode_var();
-          }
-        }
-      }
-      if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
-        for (auto &stmt : ffor->body) {
-          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            assign->gencode_var();
-          }
-        }
-      }
-      if (auto *whl = dynamic_cast<While *>(stmt.get())) {
-        for (auto &stmt : whl->body) {
-          if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
-            assign->gencode_var();
-          }
-        }
-      }
-      if (auto *func = dynamic_cast<Function *>(stmt.get())) {
-        if (func->gencode_stmt() == -1) {
-          return -1;
+    if (auto *iff = dynamic_cast<If *>(stmt.get())) {
+      for (auto &stmt : iff->body) {
+        if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+          assign->gencode_var();
         }
       }
     }
-
-    for (auto& stmt : body) {
-        if (stmt->gencode_stmt() == -1) {
-          return -1;
+    if (auto *ffor = dynamic_cast<For *>(stmt.get())) {
+      for (auto &stmt : ffor->body) {
+        if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+          assign->gencode_var();
         }
+      }
     }
+    if (auto *whl = dynamic_cast<While *>(stmt.get())) {
+      for (auto &stmt : whl->body) {
+        if (auto *assign = dynamic_cast<Assign *>(stmt.get())) {
+          assign->gencode_var();
+        }
+      }
+    }
+    if (auto *func = dynamic_cast<Function *>(stmt.get())) {
+      if (func->gencode_stmt() == -1) {
+        return -1;
+      }
+    }
+  }
 
-    for (auto& param : params) {
-        // func.erase_llvm_symbol(param);
+  for (auto& stmt : body) {
+      if (stmt->gencode_stmt() == -1) {
+        return -1;
     }
-    std::cout << "Generated function: " << name << std::endl;
-    return 0;
+  }
+
+  for (auto& param : params) {
+      // func.erase_llvm_symbol(param);
+  }
+  std::cout << "Generated function: " << name << std::endl;
+  return 0;
 }
 
 int Function::gencode_expr(VarType expected_type, llvm::Value *&value) {

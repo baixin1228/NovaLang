@@ -144,6 +144,10 @@ class ASTParser {
       return "TOK_INHERIT";
     case TOK_SUPER:
       return "TOK_SUPER";
+    case TOK_AT:
+      return "TOK_AT";
+    case TOK_PASS:
+      return "TOK_PASS";
     default:
       return "UNKNOWN";
     }
@@ -161,6 +165,7 @@ public:
   std::shared_ptr<ASTNode> parse_for();
   std::shared_ptr<ASTNode> parse_if();
   std::shared_ptr<ASTNode> parse_global();
+  std::shared_ptr<ASTNode> parse_annotation();
   std::shared_ptr<ASTNode> parse_expr();
   std::shared_ptr<ASTNode> parse_logic_or();
   std::shared_ptr<ASTNode> parse_logic_and();

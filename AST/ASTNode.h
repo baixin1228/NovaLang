@@ -40,7 +40,7 @@ protected:
 
 public:
   int line;
-  VarType type;
+  VarType type = VarType::NONE;
   Context &ctx;
   ASTNode(Context &ctx, int ln, bool is_scope = false);
   virtual ~ASTNode() = default;

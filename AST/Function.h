@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include "Assign.h"
+#include "Annotation.h"
 
 class Function : public ASTNode {
 public:
@@ -14,7 +15,9 @@ public:
     std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> params;
     std::vector<std::shared_ptr<ASTNode>> body;
     
-    // 仅保留是否是构造方法
+    std::vector<std::shared_ptr<Annotation>> annotations;
+    
+    bool is_abstract;
     bool is_init;
 
     // 统一的构造函数
@@ -46,6 +49,14 @@ public:
         }
         std::cout << ") [行 " << line << "]\n";
         
+        // 打印注解
+        if (!annotations.empty()) {
+            std::cout << std::string((level + 1) * 2, ' ') << "Annotations:\n";
+            for (const auto& anno : annotations) {
+                std::cout << std::string((level + 2) * 2, ' ') << "@" << anno->name << "\n";
+            }
+        }
+        
         std::cout << std::string((level + 1) * 2, ' ') << "Params: ";
         for (const auto &param : params) {
             std::cout << param.first << " ";
@@ -56,6 +67,26 @@ public:
         for (const auto& stmt : body) {
             stmt->print(level + 2);
         }
+    }
+
+    // 检查是否有特定注解
+    bool has_annotation(const std::string& name) const {
+        for (const auto& anno : annotations) {
+            if (anno->name == name) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // 获取特定注解
+    std::shared_ptr<Annotation> get_annotation(const std::string& name) const {
+        for (const auto& anno : annotations) {
+            if (anno->name == name) {
+                return anno;
+            }
+        }
+        return nullptr;
     }
 
     int visit_stmt() override;

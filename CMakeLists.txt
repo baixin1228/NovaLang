@@ -115,6 +115,7 @@ set(AST_SOURCES
     AST/StructFieldAssign.cpp
     AST/IndexAccess.cpp
     AST/IndexAssign.cpp
+    AST/Annotation.cpp
 )
 
 # 设置 CodeGen 源文件

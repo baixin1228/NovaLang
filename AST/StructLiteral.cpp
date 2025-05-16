@@ -60,6 +60,10 @@ int StructLiteral::visit_stmt() {
 }
 
 int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
+  if (type != VarType::NONE) {
+    expr_ret = shared_from_this();
+    return 0;
+  }
   // 遍历所有字段，确保每个字段的值都是有效的表达式，并执行类型推导
   if (visit_count == 0) {
     std::stringstream signature;
@@ -93,6 +97,9 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
       for (auto func : functions) {
         if (func.second->visit_stmt() == -1) {
           return -1;
+        }
+        if (func.second->is_abstract) {
+          is_abstract = true;
         }
       }
     }

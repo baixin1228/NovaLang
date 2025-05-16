@@ -15,6 +15,7 @@ public:
         LEXICAL,
         SYNTAX,
         TYPE,
+        SEMANTIC,
         INTERNAL,
         RUNTIME,
         Other

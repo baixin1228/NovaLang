@@ -96,6 +96,9 @@ class AAA:
         print(c)
         return 0
 
+    def ccc(self):
+        pass
+
 AAA.aaa_b = 1
 print("aaa_b:", AAA.aaa_b)
 aaa = AAA

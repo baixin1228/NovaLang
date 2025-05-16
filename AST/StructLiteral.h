@@ -28,11 +28,13 @@ public:
     int reference_count = 0;
     Function *init_method = nullptr;
     std::vector<std::pair<std::string, std::shared_ptr<ASTNode>>> fields;     // 结构体变量/实例变量
-    std::map<std::string, std::shared_ptr<ASTNode>> functions;  // 函数列表
+    std::map<std::string, std::shared_ptr<Function>> functions;  // 函数列表
     std::vector<std::shared_ptr<ASTNode>> attributes; // 类属性
     StructType struct_type;                 // 类型标识：结构体或类
     llvm::Value *llvm_instance = nullptr;
     std::string class_parent_name;
+
+    bool is_abstract;
 
     // 构造函数支持类名、函数列表和属性
     StructLiteral(Context &ctx, std::string name,

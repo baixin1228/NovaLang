@@ -373,9 +373,9 @@ int IndexAccess::gencode_dict_access(llvm::Value *dict_val, llvm::Value *key_val
             {ctx.builder->getInt32Ty()},
             false);
         exit_func = llvm::Function::Create(
-            exit_type, 
-            llvm::Function::ExternalLinkage, 
-            "exit", 
+            exit_type,
+            llvm::Function::ExternalLinkage,
+            "exit",
             ctx.module.get());
     }
     
@@ -390,6 +390,6 @@ int IndexAccess::gencode_dict_access(llvm::Value *dict_val, llvm::Value *key_val
     
     // 加载结果
     ret_value = ctx.builder->CreateLoad(result_ptr->getAllocatedType(), result_ptr, "value");
-    
+
     return 0;
-} 
+}
