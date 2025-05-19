@@ -130,7 +130,8 @@ int ListLiteral::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
     case VarType::STRING:
     case VarType::STRUCT:
     case VarType::DICT:
-    case VarType::LIST: {
+    case VarType::LIST:
+    case VarType::INSTANCE: {
       auto value_ptr_ptr = ctx.builder->CreateGEP(
           ctx.builder->getInt8Ty(), byte_ptr,
           llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));

@@ -38,14 +38,14 @@ public:
     int visit_func_expr(std::shared_ptr<ASTNode> &expr_ret, std::shared_ptr<ASTNode> ast_node);
     int visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                          std::shared_ptr<ASTNode> ast_node);
-    int visit_func_class_expr(std::shared_ptr<ASTNode> &expr_ret,
+    int visit_func_or_class(std::shared_ptr<ASTNode> &expr_ret,
                               std::shared_ptr<ASTNode> ast_node);
     int visit_prev_expr(std::shared_ptr<ASTNode> &expr_ret, std::shared_ptr<ASTNode> &field_value);
     int gencode_stmt() override;
     int gencode_expr(VarType expected_type, llvm::Value *&ret_value) override;
     int gencode_call_expr(VarType expected_type, llvm::Value *&ret_value);
     int gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value);
-    int gencode_func_expr(VarType expected_type, llvm::Function *lllvm_func, llvm::Value *&ret_value);
+    int gencode_func_expr(VarType expected_type, llvm::Value *&ret_value);
 
     // Static method to find a function in a class hierarchy
     static int get_instance_func(Context &ctx, ASTNode &node, std::string class_name, 

@@ -116,6 +116,7 @@ set(AST_SOURCES
     AST/IndexAccess.cpp
     AST/IndexAssign.cpp
     AST/Annotation.cpp
+    AST/Void.cpp
 )
 
 # 设置 CodeGen 源文件

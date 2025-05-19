@@ -17,8 +17,8 @@ public:
     
     std::vector<std::shared_ptr<Annotation>> annotations;
     
-    bool is_abstract;
-    bool is_init;
+    bool is_abstract = false;
+    bool is_init = false;
 
     // 统一的构造函数
     Function(Context &ctx, std::string n, std::vector<std::string> p,

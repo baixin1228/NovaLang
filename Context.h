@@ -28,6 +28,7 @@ public:
   Context() = default;
   ~Context() = default;
 
+  bool strict_mode = false;
   llvm::Function *printf_func;
   llvm::Function *current_function;
   std::unique_ptr<llvm::IRBuilder<>> builder;

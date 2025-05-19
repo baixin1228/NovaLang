@@ -2,6 +2,7 @@
 #include "TypeChecker.h"
 #include "ASTParser.h"
 #include "Variable.h"
+#include "Void.h"
 
 int Return::visit_stmt() {
     std::shared_ptr<ASTNode> value_ast;
@@ -22,6 +23,17 @@ int Return::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
 }
 
 int Return::gencode_stmt() {
+  if (type == VarType::NONE) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "返回值类型为空", line, __FILE__, __LINE__);
+    return -1;
+  }
+
+  // 如果返回值为空，创建void返回
+  if (type == VarType::VOID) {
+    ctx.builder->CreateRetVoid();
+    return 0;
+  }
+
   // 获取返回值
   llvm::Value* return_value = nullptr;
   if (value->gencode_expr(VarType::NONE, return_value) == -1) {

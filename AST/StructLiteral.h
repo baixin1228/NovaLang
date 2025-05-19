@@ -34,7 +34,7 @@ public:
     llvm::Value *llvm_instance = nullptr;
     std::string class_parent_name;
 
-    bool is_abstract;
+    bool is_abstract = false;
 
     // 构造函数支持类名、函数列表和属性
     StructLiteral(Context &ctx, std::string name,
@@ -101,7 +101,11 @@ public:
               break;
         }
         std::cout << std::string(level * 2, ' ') << type_str << ": " << name 
-        << " extends: " << class_parent_name << " [行 " << line << "]\n";
+        << " extends: " << class_parent_name;
+        if (is_abstract) {
+          std::cout << "<abstract>";
+        }
+        std::cout << " [行 " << line << "]\n";
         
         if (!attributes.empty()) {
             std::cout << std::string((level + 1) * 2, ' ') << "Attributes:\n";

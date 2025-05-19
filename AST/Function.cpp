@@ -12,6 +12,7 @@
 #include "If.h"
 #include "For.h"
 #include "While.h"
+#include "Void.h"
 
 int Function::visit_stmt() {
   std::string type_str = "function";
@@ -61,6 +62,7 @@ int Function::visit_stmt() {
       add_var(param.first, var_info, true);
     }
 
+    int last_line = 0;
     // process function body
     for (auto &stmt : body) {
       int ret = stmt->visit_stmt();
@@ -71,13 +73,26 @@ int Function::visit_stmt() {
       if (stmt_node) {
         return_ast = stmt_node->value;
       }
+      last_line = stmt->line;
     }
     
     // 检查是否有返回值，对于抽象方法可以没有返回值（只包含pass语句）
     if (return_ast == nullptr && !is_abstract) {
-      throw std::runtime_error("函数没有返回值: " + name + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值", line, __FILE__, __LINE__);
-      return -1;
+      if (ctx.strict_mode) {
+        throw std::runtime_error("函数没有返回值: " + name + " code:" + 
+        std::to_string(line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值", line, __FILE__, __LINE__);
+        return -1;
+      } else {
+        auto void_node = std::make_shared<Void>(ctx, last_line);
+        auto return_node = std::make_shared<Return>(ctx, void_node, last_line);
+        body.push_back(return_node);
+        int ret = return_node->visit_stmt();
+        if (ret == -1) {
+          return -1;
+        }
+        return_ast = void_node;
+      }
     }
     return 0;
   } else {
@@ -181,6 +196,9 @@ int Function::gencode_stmt() {
         break;
       case VarType::STRUCT:
         llvm_return_type = llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0);
+        break;
+      case VarType::VOID:
+        llvm_return_type = ctx.builder->getVoidTy();
         break;
       default:
         throw std::runtime_error("未知返回类型: " + var_type_to_string(return_ast->type) +

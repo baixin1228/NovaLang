@@ -15,6 +15,7 @@ int Call::visit_stmt() {
   return visit_expr(expr_ret_ast);
 }
 
+/* call like: ClassA() */
 int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> ast_node) {
   if (instance)
@@ -29,11 +30,11 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
                   __FILE__, __LINE__);
     return -1;
   }
-  if (class_node->is_abstract) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "抽象类不能实例化: " + name, line,
-                  __FILE__, __LINE__);
-    return -1;
-  }
+  // if (class_node->is_abstract) {
+  //   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "抽象类不能实例化: " + name, line,
+  //                 __FILE__, __LINE__);
+  //   return -1;
+  // }
   instance = std::make_shared<StructLiteral>(*class_node);
   instance->type = VarType::INSTANCE;
   instance->functions.clear();
@@ -44,6 +45,7 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
   return 0;
 }
 
+/* call like: func() */
 int Call::visit_func_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> func_ast) {
   auto func_node = dynamic_cast<Function *>(func_ast.get());
@@ -86,17 +88,18 @@ int Call::visit_func_expr(std::shared_ptr<ASTNode> &expr_ret,
   func_node->reference_count++;
   func_node->visit_stmt();
 
-  expr_ret = func_node->return_ast;
-  if (expr_ret == nullptr) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name,
-                  line, __FILE__, __LINE__);
-    return -1;
-  }
-  type = expr_ret->type;
+  // expr_ret = func_node->return_ast;
+  // if (expr_ret == nullptr) {
+  //   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name,
+  //                 line, __FILE__, __LINE__);
+  //   return -1;
+  // }
+  // type = expr_ret->type;
   return 0;
 }
 
-int Call::visit_func_class_expr(std::shared_ptr<ASTNode> &expr_ret,
+/* call like: func() or ClassA() */
+int Call::visit_func_or_class(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> ast_node) {
   if (!ast_node) {
     auto func_info = lookup_func(name);
@@ -218,11 +221,11 @@ int Call::visit_expr(std::shared_ptr<ASTNode> &expr_ret_ast) {
     if (ret == -1) {
       return -1;
     }
-    return visit_func_class_expr(expr_ret_ast, ret_ast);
+    return visit_func_or_class(expr_ret_ast, ret_ast);
   }
 
   // Otherwise, treat it as a regular function call
-  return visit_func_class_expr(expr_ret_ast, nullptr);
+  return visit_func_or_class(expr_ret_ast, nullptr);
 }
 
 int Call::gencode_stmt() {
@@ -230,15 +233,22 @@ int Call::gencode_stmt() {
   return gencode_expr(VarType::NONE, dummy_value);
 }
 
-int Call::gencode_func_expr(VarType expected_type, llvm::Function *llvm_func, llvm::Value *&ret_value) {
-  // std::cout << "func name: " << name << " return type: " <<
-  // var_type_to_string(func_node->return_ast->type) << std::endl;
-  // llvm_func->getType()->print(llvm::outs());
-  // std::cout << std::endl;
-  // 准备参数列表
+/* call like: func() */
+int Call::gencode_func_expr(VarType expected_type, llvm::Value *&ret_value) {
   std::vector<llvm::Value *> llvm_args;
+  auto func_info = lookup_func(name);
+  if (!func_info) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+  auto func_node = dynamic_cast<Function *>(func_info->node.get());
+  if (!func_node) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
 
-  // 处理所有参数
   for (auto &arg : args) {
     llvm::Value *arg_val = nullptr;
     if (arg->gencode_expr(VarType::NONE, arg_val) == -1) {
@@ -252,34 +262,28 @@ int Call::gencode_func_expr(VarType expected_type, llvm::Function *llvm_func, ll
     }
     llvm_args.push_back(arg_val);
   }
-  // 调用函数
-  ret_value = ctx.builder->CreateCall(llvm_func, llvm_args, "call");
+
+  if (func_node->return_ast->type != VarType::VOID) {
+    ret_value = ctx.builder->CreateCall(func_info->llvm_func, llvm_args,
+                                        "call_" + std::to_string(line));
+  } else {
+    ret_value = ctx.builder->CreateCall(func_info->llvm_func, llvm_args);
+  }
   return 0;
 }
 
 int Call::gencode_call_expr(VarType expected_type, llvm::Value *&ret_value) {
-  // // 查找类
+  /* call like: ClassA() */
   auto class_info = lookup_struct(name);
   if (class_info) {
     std::cout << "gen instance: " << name << std::endl;
     return instance->gencode_expr(expected_type, ret_value);
   }
-  // 查找函数
-  auto func_info = lookup_func(name);
-  if (!func_info) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义函数: " + name, line,
-                  __FILE__, __LINE__);
-    return -1;
-  }
-  auto func_node = dynamic_cast<Function *>(func_info->node.get());
-  if (!func_node) {
-    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "不是函数类型: " + name, line,
-                  __FILE__, __LINE__);
-    return -1;
-  }
-  return gencode_func_expr(expected_type, func_info->llvm_func, ret_value);
+  /* call like: func() */
+  return gencode_func_expr(expected_type, ret_value);
 }
 
+/* call like: xxx.func() */
 int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
   std::shared_ptr<ASTNode> ret_ast;
   std::shared_ptr<ASTNode> expr_ret_ast;
@@ -370,16 +374,21 @@ int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
     }
 
     // 调用函数指针
-    ret_value = ctx.builder->CreateCall(func_node->llvm_type, func_ptr, llvm_args, "struct_call");
+    if (func_node->return_ast->type != VarType::VOID) {
+      ret_value = ctx.builder->CreateCall(func_node->llvm_type, func_ptr,
+                                          llvm_args, "struct_call_" + std::to_string(line));
+    } else {
+      ret_value = ctx.builder->CreateCall(func_node->llvm_type, func_ptr,
+                                          llvm_args);
+    }
     return 0;
  }
 
 int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
-  // 如果存在前向表达式，则调用结构体方法
   if (forward_expr) {
+    /* call like: xxx.func() */
     return gencode_prev_expr(expected_type, ret_value);
   }
-
-  // 否则调用普通函数
+  /* call like: func() */
   return gencode_call_expr(expected_type, ret_value);
 }
