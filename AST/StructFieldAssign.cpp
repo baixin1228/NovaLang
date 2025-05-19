@@ -20,6 +20,7 @@ int StructFieldAssign::visit_struct_stmt(StructLiteral *struct_ast) {
 
   if (field == struct_ast->fields.end()) {
     if (struct_ast->type == VarType::INSTANCE) {
+      /* self.field = value */
       struct_ast->fields.push_back(std::make_pair(field_name, value_ast));
       field_type = value_ast->type;
     } else {

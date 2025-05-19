@@ -82,7 +82,7 @@ int If::gencode_stmt() {
   }
   ctx.builder->CreateCondBr(cond_val, then_bb, next_bb);
 
-  ctx.builder->SetInsertPoint(then_bb);
+  ctx.update_insert_point(then_bb);
   for (auto &stmt : body) {
     if (stmt->gencode_stmt() == -1) {
       return -1;
@@ -92,7 +92,7 @@ int If::gencode_stmt() {
 
   // Elif 分支
   for (size_t i = 0; i < elifs.size(); ++i) {
-    ctx.builder->SetInsertPoint(elif_bbs[i]);
+    ctx.update_insert_point(elif_bbs[i]);
     llvm::Value* elif_cond_val = nullptr;
     if (elifs[i].first->gencode_expr(VarType::BOOL, elif_cond_val) == -1) {
         return -1;
@@ -114,7 +114,7 @@ int If::gencode_stmt() {
                    llvm::BasicBlock::Create(*ctx.llvm_context, "else", ctx.current_function));
     ctx.builder->CreateCondBr(elif_cond_val, elif_body_bb, next_elif_bb);
 
-    ctx.builder->SetInsertPoint(elif_body_bb);
+    ctx.update_insert_point(elif_body_bb);
     for (auto &stmt : elifs[i].second) {
       if (stmt->gencode_stmt() == -1) {
         return -1;
@@ -125,14 +125,14 @@ int If::gencode_stmt() {
 
   // Else 分支
   if (!else_body.empty()) {
-    ctx.builder->SetInsertPoint(else_bb);
+    ctx.update_insert_point(else_bb);
     for (auto &stmt : else_body) {
       stmt->gencode_stmt();
     }
     ctx.builder->CreateBr(end_bb);
   }
 
-  ctx.builder->SetInsertPoint(end_bb);
+  ctx.update_insert_point(end_bb);
   return 0;
 }
 

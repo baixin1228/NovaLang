@@ -55,7 +55,7 @@ int For::gencode_stmt() {
   auto exit_bb = llvm::BasicBlock::Create(*ctx.llvm_context, "exit", ctx.current_function);
 
   ctx.builder->CreateBr(loop_bb);
-  ctx.builder->SetInsertPoint(loop_bb);
+  ctx.update_insert_point(loop_bb);
   auto iter_val =
       ctx.builder->CreateLoad(ctx.builder->getInt64Ty(), iter_ptr, iterator->name + "_val");
   iter_val->setAlignment(llvm::Align(get_type_align(VarType::INT)));
@@ -67,7 +67,7 @@ int For::gencode_stmt() {
   auto cond = ctx.builder->CreateICmpSLT(iter_val, end_val, "cmp");
   ctx.builder->CreateCondBr(cond, body_bb, exit_bb);
 
-  ctx.builder->SetInsertPoint(body_bb);
+  ctx.update_insert_point(body_bb);
   for (auto &stmt : body) {
     if (stmt->gencode_stmt() == -1) {
       return -1;
@@ -79,7 +79,7 @@ int For::gencode_stmt() {
   str2->setAlignment(llvm::Align(get_type_align(VarType::INT)));
   ctx.builder->CreateBr(loop_bb);
 
-  ctx.builder->SetInsertPoint(exit_bb);
+  ctx.update_insert_point(exit_bb);
   return 0;
 }
 

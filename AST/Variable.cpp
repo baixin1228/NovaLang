@@ -27,13 +27,8 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
 
   auto var_info = lookup_var(name, line);
   if (var_info) {
-    // if (auto var_node = std::dynamic_pointer_cast<Variable>(var_info)) {
-      // var_node->visit_expr(expr_ret);
-      // type = expr_ret->type;
-    // } else {
       type = var_info->node->type;
       expr_ret = var_info->node;
-    // }
     if (var_info->node->type == VarType::NONE) {
       ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "未定义变量类型: " + name,
                     line, __FILE__, __LINE__);
@@ -63,7 +58,7 @@ int Variable::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
                   __FILE__, __LINE__);
     return -1;
   }
-    // print_backtrace();
+
   std::cout << "Variable::visit_expr: " << name << std::endl;
   return 0;
 }
@@ -158,7 +153,7 @@ int Variable::gencode_var_expr(Context &ctx, std::string name,
 }
 
 int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
-  // Check if this variable is a method on a class instance
+  /* a.func */
   if (parent && (parent->type == VarType::CLASS || parent->type == VarType::INSTANCE)) {
     auto instance = dynamic_cast<StructLiteral *>(parent);
     if (instance) {
@@ -180,14 +175,26 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
             return -1;
           }
           value = func_info->llvm_func;
+          if (!value) {
+            print_backtrace();
+            throw std::runtime_error("function llvm_value is nullptr: " + name);
+          }
           return 0;
+        } else {
+          throw std::runtime_error("function type error: " + name);
         }
+      } else {
+        throw std::runtime_error("function not found: " + name);
       }
+    } else {
+      throw std::runtime_error("class or instance not found: " + instance->name);
     }
   }
 
+  /* a = b */
   auto var_info = lookup_var(name, line);
   if (!var_info) {
+    /* a = func */
     auto func_info = lookup_func(name);
     if (func_info) {
       auto func_node = std::dynamic_pointer_cast<Function>(func_info->node);
@@ -199,6 +206,8 @@ int Variable::gencode_expr(VarType expected_type, llvm::Value *&value) {
         }
         value = func_info->llvm_func;
         return 0;
+      } else {
+        throw std::runtime_error("函数: " + name + "类型错误");
       }
     }
   }

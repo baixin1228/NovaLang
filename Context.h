@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stack>
 #include <string>
 #include <vector>
 #include <llvm/IR/Value.h>
@@ -23,7 +24,8 @@ private:
   std::map<std::string, std::shared_ptr<ClassInfo>> global_structs;
 
   std::vector<std::shared_ptr<ASTNode>> ast;
-  // global struct definition
+  std::stack<std::pair<llvm::Function *, llvm::BasicBlock *>> func_stack;
+
 public:
   Context() = default;
   ~Context() = default;
@@ -69,4 +71,8 @@ public:
 
   // Get LLVM type from VarType
   llvm::Type* get_llvm_type(VarType type) const;
+
+  void push_func_stack(llvm::Function *func, llvm::BasicBlock *block);
+  void pop_func_stack();
+  void update_insert_point(llvm::BasicBlock *block);
 };

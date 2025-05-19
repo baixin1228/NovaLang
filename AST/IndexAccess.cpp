@@ -142,7 +142,7 @@ int IndexAccess::gencode_list_access(llvm::Value *list_val, llvm::Value *index_v
     ctx.builder->CreateCondBr(out_of_bounds, error_bb, normal_bb);
     
     // 处理越界情况
-    ctx.builder->SetInsertPoint(error_bb);
+    ctx.update_insert_point(error_bb);
     auto err_msg = ctx.builder->CreateGlobalStringPtr("错误: 数组索引越界", "err_msg");
     auto printf_func = ctx.printf_func;
     auto err_fmt = ctx.builder->CreateGlobalStringPtr("%s\n", "err_fmt");
@@ -171,7 +171,7 @@ int IndexAccess::gencode_list_access(llvm::Value *list_val, llvm::Value *index_v
     ctx.builder->CreateUnreachable();
     
     // 正常访问
-    ctx.builder->SetInsertPoint(normal_bb);
+    ctx.update_insert_point(normal_bb);
     
     VarType element_type = VarType::NONE;
     if (list_literal) {
@@ -357,7 +357,7 @@ int IndexAccess::gencode_dict_access(llvm::Value *dict_val, llvm::Value *key_val
     ctx.builder->CreateCondBr(found, normal_bb, error_bb);
     
     // 键不存在时的处理
-    ctx.builder->SetInsertPoint(error_bb);
+    ctx.update_insert_point(error_bb);
     auto err_msg = ctx.builder->CreateGlobalStringPtr("错误: 字典中不存在指定的键", "key_error");
     auto printf_func = ctx.printf_func;
     auto err_fmt = ctx.builder->CreateGlobalStringPtr("%s\n", "err_fmt");
@@ -386,7 +386,7 @@ int IndexAccess::gencode_dict_access(llvm::Value *dict_val, llvm::Value *key_val
     ctx.builder->CreateUnreachable();
     
     // 正常情况
-    ctx.builder->SetInsertPoint(normal_bb);
+    ctx.update_insert_point(normal_bb);
     
     // 加载结果
     ret_value = ctx.builder->CreateLoad(result_ptr->getAllocatedType(), result_ptr, "value");

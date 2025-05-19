@@ -90,12 +90,12 @@ int Return::gencode_stmt() {
                                      continue_block);
 
                 // 在release块中减少引用计数
-                ctx.builder->SetInsertPoint(release_block);
+                ctx.update_insert_point(release_block);
                 ctx.builder->CreateCall(release_func, {var_value});
                 ctx.builder->CreateBr(continue_block);
 
                 // 继续处理下一个变量
-                ctx.builder->SetInsertPoint(continue_block);
+                ctx.update_insert_point(continue_block);
               }
             }
           }

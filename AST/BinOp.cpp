@@ -57,21 +57,27 @@ int BinOp::handle_comparison_op() {
 }
 
 int BinOp::handle_logical_op() {
-  std::shared_ptr<ASTNode> left_ast;
+  std::shared_ptr<ASTNode> left_ast = nullptr;
   int ret = left->visit_expr(left_ast);
-  if (ret == -1) {
+  if (ret == -1 || !left_ast) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "left operand is null " + op,
+                  line, __FILE__, __LINE__);
     return -1;
   }
-  
+
   std::shared_ptr<ASTNode> right_ast;
   ret = right->visit_expr(right_ast);
-  if (ret == -1) {
+  if (ret == -1 || !right_ast) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                  "right operand is null " + op,
+                  line, __FILE__, __LINE__);
     return -1;
   }
   
   if (left_ast->type != VarType::BOOL || right_ast->type != VarType::BOOL) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                  "无效类型用于 " + op + ": " + var_type_to_string(left_ast->type) + ", " + var_type_to_string(right_ast->type),
+                  "invalid type for " + op + ": " + var_type_to_string(left_ast->type) + ", " + var_type_to_string(right_ast->type),
                   line, __FILE__, __LINE__);
     return -1;
   }
@@ -794,7 +800,7 @@ int BinOp::gen_logical_and(VarType expected_type, llvm::Value*& ret_value) {
   ctx.builder->CreateCondBr(left_value, right_bb, merge_bb);
   
   // 右操作数代码块
-  ctx.builder->SetInsertPoint(right_bb);
+  ctx.update_insert_point(right_bb);
   llvm::Value* right_value = nullptr;
   if (right->gencode_expr(VarType::BOOL, right_value) == -1) return -1;
   auto right_bb_end = ctx.builder->GetInsertBlock(); // 获取当前右侧代码块，可能已经改变
@@ -802,7 +808,7 @@ int BinOp::gen_logical_and(VarType expected_type, llvm::Value*& ret_value) {
   
   // 合并块
   function->getBasicBlockList().push_back(merge_bb);
-  ctx.builder->SetInsertPoint(merge_bb);
+  ctx.update_insert_point(merge_bb);
   
   // 创建PHI节点来合并结果
   auto phi = ctx.builder->CreatePHI(ctx.builder->getInt1Ty(), 2, "and.result");
@@ -844,7 +850,7 @@ int BinOp::gen_logical_or(VarType expected_type, llvm::Value*& ret_value) {
   ctx.builder->CreateCondBr(left_value, merge_bb, right_bb);
   
   // 右操作数代码块
-  ctx.builder->SetInsertPoint(right_bb);
+  ctx.update_insert_point(right_bb);
   llvm::Value* right_value = nullptr;
   if (right->gencode_expr(VarType::BOOL, right_value) == -1) return -1;
   auto right_bb_end = ctx.builder->GetInsertBlock(); // 获取当前右侧代码块，可能已经改变
@@ -852,7 +858,7 @@ int BinOp::gen_logical_or(VarType expected_type, llvm::Value*& ret_value) {
   
   // 合并块
   function->getBasicBlockList().push_back(merge_bb);
-  ctx.builder->SetInsertPoint(merge_bb);
+  ctx.update_insert_point(merge_bb);
   
   // 创建PHI节点来合并结果
   auto phi = ctx.builder->CreatePHI(ctx.builder->getInt1Ty(), 2, "or.result");

@@ -124,6 +124,7 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
 
 int StructLiteral::gencode_stmt() {
   if (struct_type == StructType::CLASS) {
+    /* generate attributes */
     for (auto attr : attributes) {
       auto attr_node = std::dynamic_pointer_cast<Assign>(attr);
       if (attr_node) {
@@ -132,7 +133,10 @@ int StructLiteral::gencode_stmt() {
         }
       }
     }
+    /* generate functions */
+    std::cout << "generate functions" << std::endl;
     for (auto func : functions) {
+      std::cout << "generate function: " << func.first << std::endl;
       auto func_node = std::dynamic_pointer_cast<Function>(func.second);
       if (func_node->reference_count > 0) {
         if (func_node->gencode_stmt() == -1) {
@@ -145,19 +149,23 @@ int StructLiteral::gencode_stmt() {
 }
 
 int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
+  if (type == VarType::CLASS) {
+    print_backtrace();
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "class can't be used as expression", line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+
   if (llvm_instance)
   {
     value = llvm_instance;
     return 0;
   }
-  // 计算所需内存大小 - 仅需存储字段值
+
+  std::cout << "Gencode instance: " << name << std::endl;
+
   size_t total_size = 0;
-
-  // 创建字段映射的数据结构，用于后续写入内存
-  std::vector<std::pair<std::string, std::pair<VarType, llvm::Value *>>>
-      field_data;
-
-  // 遍历字段计算总大小
+  /* size of instance */
   for (const auto &field : fields) {
     std::shared_ptr<ASTNode> field_ast;
     int ret = field.second->visit_expr(field_ast);
@@ -169,29 +177,54 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
       field_type = VarType::FUNCTION;
     }
 
-    std::cout << "field_ast: " << field.first
+    std::cout << "instance:" << name << " field: " << field.first
               << " type: " << var_type_to_string(field_type) << std::endl;
-    // 计算字段值所需空间
     total_size += get_type_align(field_type);
+  }
+  if (total_size == 0)
+    throw std::runtime_error("instance size is 0");
+  
+  /* allocate instance memory */
+  auto nova_memory_alloc_func =
+      ctx.runtime_manager->getRuntimeFunction("nova_memory_alloc");
 
-    // 准备字段值
+  llvm::Value *size_val =
+      llvm::ConstantInt::get(ctx.builder->getInt64Ty(), total_size);
+  llvm::Value *struct_ptr =
+      ctx.builder->CreateCall(nova_memory_alloc_func, {size_val}, "struct_obj");
+
+  value = struct_ptr;
+
+  /* generate class: function and attributes, relabel instance memory */
+  auto class_info = lookup_struct(name);
+  if (class_info) {
+    if (class_info->node->gencode_stmt() != 0) {
+      return -1;
+    }
+  } else {
+    throw std::runtime_error("class not found: " + name);
+  }
+
+  /* generate instance fields */
+  std::vector<std::pair<std::string, std::pair<VarType, llvm::Value *>>>
+      field_data;
+  for (const auto &field : fields) {
+    std::shared_ptr<ASTNode> field_ast;
+    int ret = field.second->visit_expr(field_ast);
+    if (ret == -1) {
+      return -1;
+    }
+    VarType field_type = field_ast->type;
+    if (field.second->type == VarType::FUNCTION) {
+      field_type = VarType::FUNCTION;
+    }
+
     llvm::Value *field_value = nullptr;
     if (field.second->gencode_expr(field_type, field_value) != 0) {
       return -1;
     }
     field_data.push_back({field.first, {field_type, field_value}});
   }
-
-  // 使用nova_memory_alloc创建一个结构体对象，分配所需内存
-  auto nova_memory_alloc_func =
-      ctx.runtime_manager->getRuntimeFunction("nova_memory_alloc");
-  // 确保分配至少有1字节空间
-  if (total_size == 0)
-    total_size = 1;
-  llvm::Value *size_val =
-      llvm::ConstantInt::get(ctx.builder->getInt64Ty(), total_size);
-  llvm::Value *struct_ptr =
-      ctx.builder->CreateCall(nova_memory_alloc_func, {size_val}, "struct_obj");
 
   // 获取数据区域指针
   auto data_ptr = ctx.builder->CreateCall(
@@ -207,95 +240,102 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   for (const auto &field_info : field_data) {
     VarType field_type = field_info.second.first;
     llvm::Value *field_value = field_info.second.second;
-
-    // 根据字段类型确定存储方式
-    switch (field_type) {
-    case VarType::INT: {
-      auto value_ptr_ptr = ctx.builder->CreateGEP(
-          ctx.builder->getInt8Ty(), byte_ptr,
-          llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
-      auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr, llvm::PointerType::get(ctx.builder->getInt64Ty(), 0));
-
-      ctx.builder->CreateStore(field_value, value_ptr);
-      break;
+    if (field_value == nullptr) {
+      ctx.print_errors();
+      throw std::runtime_error("llvm_value:" + field_info.first + " type:" + var_type_to_string(field_type) + " is nullptr");
     }
-    case VarType::FLOAT: {
-      auto value_ptr_ptr = ctx.builder->CreateGEP(
-          ctx.builder->getInt8Ty(), byte_ptr,
-          llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
-      auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr, llvm::PointerType::get(ctx.builder->getDoubleTy(), 0));
 
-      ctx.builder->CreateStore(field_value, value_ptr);
-      break;
-    }
-    case VarType::BOOL: {
-      auto value_ptr_ptr = ctx.builder->CreateGEP(
-          ctx.builder->getInt8Ty(), byte_ptr,
-          llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
-      auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr, llvm::PointerType::get(ctx.builder->getInt1Ty(), 0));
+      // 根据字段类型确定存储方式
+      switch (field_type) {
+      case VarType::INT: {
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr,
+            llvm::PointerType::get(ctx.builder->getInt64Ty(), 0));
 
-      ctx.builder->CreateStore(field_value, value_ptr);
-      break;
-    }
-    case VarType::FUNCTION: {
-      // 函数字段的处理：存储函数指针
-      // 函数指针本质上是一个指向代码的指针，我们将其存储为指针类型
-      auto value_ptr_ptr = ctx.builder->CreateGEP(
-          ctx.builder->getInt8Ty(), byte_ptr,
-          llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+        ctx.builder->CreateStore(field_value, value_ptr);
+        break;
+      }
+      case VarType::FLOAT: {
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr,
+            llvm::PointerType::get(ctx.builder->getDoubleTy(), 0));
 
-      // 将函数指针转换为通用指针类型
-      auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr,
-          llvm::PointerType::get(
-              llvm::PointerType::get(ctx.builder->getInt8Ty(), 0), 0));
+        ctx.builder->CreateStore(field_value, value_ptr);
+        break;
+      }
+      case VarType::BOOL: {
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr, llvm::PointerType::get(ctx.builder->getInt1Ty(), 0));
 
-      // 如果function_value是函数指针，需要进行适当的转换
-      auto func_ptr = ctx.builder->CreateBitCast(
-          field_value, llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+        ctx.builder->CreateStore(field_value, value_ptr);
+        break;
+      }
+      case VarType::FUNCTION: {
+        // 函数字段的处理：存储函数指针
+        // 函数指针本质上是一个指向代码的指针，我们将其存储为指针类型
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
 
-      // 存储函数指针
-      ctx.builder->CreateStore(func_ptr, value_ptr);
-      // std::cout << "gen instance function: " << field_info.first << " func_ptr: " << func_ptr << " value_ptr: " << value_ptr << std::endl;
-      break;
-    }
-    case VarType::STRING:
-    case VarType::STRUCT:
-    case VarType::DICT:
-    case VarType::LIST: {
-      auto value_ptr_ptr = ctx.builder->CreateGEP(
-          ctx.builder->getInt8Ty(), byte_ptr,
-          llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
-      auto value_ptr = ctx.builder->CreateBitCast(
-          value_ptr_ptr,
-          llvm::PointerType::get(
-              llvm::PointerType::get(
-                  ctx.runtime_manager->getNovaMemoryBlockType(), 0),
-              0));
+        // 将函数指针转换为通用指针类型
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr,
+            llvm::PointerType::get(
+                llvm::PointerType::get(ctx.builder->getInt8Ty(), 0), 0));
 
-      ctx.builder->CreateStore(field_value, value_ptr);
+        // 如果function_value是函数指针，需要进行适当的转换
+        auto func_ptr = ctx.builder->CreateBitCast(
+            field_value, llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
 
-      // 对于引用类型，需要增加引用计数
-      auto retain_func =
-          ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");
-      ctx.builder->CreateCall(retain_func, {field_value});
-      break;
-    }
-    default:
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
-                    "不支持的结构体字段类型: " + var_type_to_string(field_type),
-                    line, __FILE__, __LINE__);
-      return -1;
-    }
+        // 存储函数指针
+        ctx.builder->CreateStore(func_ptr, value_ptr);
+        // std::cout << "gen instance function: " << field_info.first << "
+        // func_ptr: " << func_ptr << " value_ptr: " << value_ptr << std::endl;
+        break;
+      }
+      case VarType::STRING:
+      case VarType::STRUCT:
+      case VarType::DICT:
+      case VarType::LIST: {
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr,
+            llvm::PointerType::get(
+                llvm::PointerType::get(
+                    ctx.runtime_manager->getNovaMemoryBlockType(), 0),
+                0));
+
+        ctx.builder->CreateStore(field_value, value_ptr);
+
+        // 对于引用类型，需要增加引用计数
+        auto retain_func =
+            ctx.runtime_manager->getRuntimeFunction("nova_memory_retain");
+        ctx.builder->CreateCall(retain_func, {field_value});
+        break;
+      }
+      default:
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                      "不支持的结构体字段类型: " +
+                          var_type_to_string(field_type),
+                      line, __FILE__, __LINE__);
+        return -1;
+      }
 
     // 更新偏移量
     offset += get_type_align(field_type);
   }
 
-  value = struct_ptr;
   llvm_instance = value;
   return 0;
 }

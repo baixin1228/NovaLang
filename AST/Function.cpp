@@ -183,6 +183,11 @@ int Function::gencode_stmt() {
         break;
       }
     }
+    if(!return_ast)
+    {
+      throw std::runtime_error("函数没有返回值: " + name + " code:" + std::to_string(line) + " line:" + std::to_string(__LINE__));
+      return -1;
+    }
     llvm::Type* llvm_return_type;
     switch (return_ast->type) {
       case VarType::INT:
@@ -239,8 +244,7 @@ int Function::gencode_stmt() {
   // }
 
   auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", llvm_func);
-  ctx.builder->SetInsertPoint(block);
-  ctx.current_function = llvm_func;
+  ctx.push_func_stack(llvm_func, block);
 
   size_t i = 0;
   for (auto& arg : llvm_func->args()) {
@@ -332,7 +336,7 @@ int Function::gencode_stmt() {
   for (auto& param : params) {
       // func.erase_llvm_symbol(param);
   }
-  std::cout << "Generated function: " << name << std::endl;
+  ctx.pop_func_stack();
   return 0;
 }
 

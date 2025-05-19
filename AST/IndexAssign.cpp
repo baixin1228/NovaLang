@@ -159,7 +159,7 @@ int IndexAssign::gencode_list_assign(llvm::Value *list_val, llvm::Value *index_v
     ctx.builder->CreateCondBr(out_of_bounds, error_bb, normal_bb);
     
     // 处理越界情况
-    ctx.builder->SetInsertPoint(error_bb);
+    ctx.update_insert_point(error_bb);
     auto err_msg = ctx.builder->CreateGlobalStringPtr("错误: 数组索引越界", "err_msg");
     auto printf_func = ctx.printf_func;
     auto err_fmt = ctx.builder->CreateGlobalStringPtr("%s\n", "err_fmt");
@@ -171,7 +171,7 @@ int IndexAssign::gencode_list_assign(llvm::Value *list_val, llvm::Value *index_v
     ctx.builder->CreateBr(end_bb);
     
     // 正常赋值
-    ctx.builder->SetInsertPoint(normal_bb);
+    ctx.update_insert_point(normal_bb);
     
     // 计算元素偏移量 - 开始位置是在元素数量之后
     auto elem_size = ctx.builder->getInt64(8); // 假设每个元素8字节
@@ -240,7 +240,7 @@ int IndexAssign::gencode_list_assign(llvm::Value *list_val, llvm::Value *index_v
     ctx.builder->CreateBr(end_bb);
     
     // 设置插入点到结束基本块
-    ctx.builder->SetInsertPoint(end_bb);
+    ctx.update_insert_point(end_bb);
     
     return 0;
 }

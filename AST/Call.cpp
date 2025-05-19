@@ -1,4 +1,5 @@
 #include "Call.h"
+#include "ASTNode.h"
 #include "Common.h"
 #include "Context.h"
 #include "Function.h"
@@ -45,9 +46,29 @@ int Call::visit_class_expr(std::shared_ptr<ASTNode> &expr_ret,
   return 0;
 }
 
-/* call like: func() */
+/* call like: func()/super() */
 int Call::visit_func_expr(std::shared_ptr<ASTNode> &expr_ret,
                           std::shared_ptr<ASTNode> func_ast) {
+
+  if (name == "super") {
+    ASTNode *parent_ast = parent;
+    while (parent_ast->type != VarType::CLASS &&
+           parent_ast->type != VarType::INSTANCE && parent_ast->parent) {
+      parent_ast = parent_ast->parent;
+    }
+    if (parent_ast->type == VarType::CLASS ||
+        parent_ast->type == VarType::INSTANCE) {
+      auto parent_class = dynamic_cast<StructLiteral *>(parent_ast);
+      if (parent_class->class_parent_name.empty()) {
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE, 
+        "Class:" + name + " has no parent class, cannot call super", line,
+                      __FILE__, __LINE__);
+        return -1;
+      }
+      // expr_ret = parent_ast->shared_from_this();
+    }
+  }
+
   auto func_node = dynamic_cast<Function *>(func_ast.get());
   if (!func_node) {
     ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
@@ -86,15 +107,17 @@ int Call::visit_func_expr(std::shared_ptr<ASTNode> &expr_ret,
     func_node->params[i].second = arg_ast;
   }
   func_node->reference_count++;
-  func_node->visit_stmt();
+  if(func_node->visit_stmt() != 0) {
+    return -1;
+  }
 
-  // expr_ret = func_node->return_ast;
-  // if (expr_ret == nullptr) {
-  //   ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "函数没有返回值: " + name,
-  //                 line, __FILE__, __LINE__);
-  //   return -1;
-  // }
-  // type = expr_ret->type;
+  expr_ret = func_node->return_ast;
+  if (expr_ret == nullptr) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "function:" + name + " has no return value",
+                  line, __FILE__, __LINE__);
+    return -1;
+  }
+  type = expr_ret->type;
   return 0;
 }
 
@@ -105,6 +128,12 @@ int Call::visit_func_or_class(std::shared_ptr<ASTNode> &expr_ret,
     auto func_info = lookup_func(name);
     if (func_info) {
       ast_node = func_info->node;
+      if (!ast_node) {
+        ctx.add_error(ErrorHandler::ErrorLevel::TYPE,
+                      "function:" + name + " is not resolved", line, __FILE__,
+                      __LINE__);
+        return -1;
+      }
     }
   }
   if (!ast_node) {
@@ -184,6 +213,7 @@ int Call::visit_prev_expr(
   }
   
   if (struct_node->type == VarType::INSTANCE) {
+    /* add self as first argument */
     args.insert(args.begin(), struct_instance);
     ret = get_instance_func(ctx, *this, struct_node->name, name, line, ret_ast);
     if (ret == -1) {
@@ -193,6 +223,7 @@ int Call::visit_prev_expr(
     if (ret == -1) {
       return -1;
     }
+    /* add function to instance */
     auto value_ast = std::make_shared<Variable>(
         ctx, name, ret_ast->line);
     value_ast->set_parent(struct_node);
@@ -214,17 +245,17 @@ int Call::visit_prev_expr(
 }
 
 int Call::visit_expr(std::shared_ptr<ASTNode> &expr_ret_ast) {
-  // Check if this is a method call on an object
   if (forward_expr) {
     std::shared_ptr<ASTNode> ret_ast;
     int ret = visit_prev_expr(expr_ret_ast, ret_ast);
     if (ret == -1) {
       return -1;
     }
+    /* xxx.func() or xxx.ClassA() */
     return visit_func_or_class(expr_ret_ast, ret_ast);
   }
 
-  // Otherwise, treat it as a regular function call
+  /* func() */
   return visit_func_or_class(expr_ret_ast, nullptr);
 }
 
@@ -276,8 +307,11 @@ int Call::gencode_call_expr(VarType expected_type, llvm::Value *&ret_value) {
   /* call like: ClassA() */
   auto class_info = lookup_struct(name);
   if (class_info) {
-    std::cout << "gen instance: " << name << std::endl;
-    return instance->gencode_expr(expected_type, ret_value);
+    int ret = instance->gencode_expr(expected_type, ret_value);
+    if (ret == -1) {
+      return -1;
+    }
+    return 0;
   }
   /* call like: func() */
   return gencode_func_expr(expected_type, ret_value);
@@ -285,6 +319,14 @@ int Call::gencode_call_expr(VarType expected_type, llvm::Value *&ret_value) {
 
 /* call like: xxx.func() */
 int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
+  // generate struct value first
+  llvm::Value *struct_val = nullptr;
+  if (forward_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
+    ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法获取结构体实例", line,
+                  __FILE__, __LINE__);
+    return -1;
+  }
+
   std::shared_ptr<ASTNode> ret_ast;
   std::shared_ptr<ASTNode> expr_ret_ast;
   int ret = visit_prev_expr(expr_ret_ast, ret_ast);
@@ -302,19 +344,7 @@ int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
                     __FILE__, __LINE__);
       return -1;
     }
-    // std::cout << name << std::endl;
-    // func_node->llvm_type->print(llvm::outs());
-    // std::cout << std::endl;
-    // 获取结构体对象
-    std::cout << "gen call function: " << name << std::endl;
-    llvm::Value *struct_val = nullptr;
-    if (forward_expr->gencode_expr(VarType::STRUCT, struct_val) != 0) {
-      ctx.add_error(ErrorHandler::ErrorLevel::TYPE, "无法获取结构体实例", line,
-                  __FILE__, __LINE__);
-      return -1;
-    }
 
-    std::cout << "gen call function: " << name << std::endl;
     // 获取结构体数据区域指针
     auto data_ptr = ctx.builder->CreateCall(
         ctx.runtime_manager->getRuntimeFunction("nova_memory_get_data"),
@@ -342,7 +372,6 @@ int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
                   __FILE__, __LINE__);
       return -1;
     }
-    std::cout << "gen call function: " << name << std::endl;
 
     // 计算字段指针位置
     auto field_ptr = ctx.builder->CreateGEP(
@@ -355,7 +384,6 @@ int Call::gencode_prev_expr(VarType expected_type, llvm::Value *&ret_value) {
     
     // 加载函数指针
     func_ptr = ctx.builder->CreateLoad(func_ptr_type, func_ptr);
-    std::cout << "gen call function: " << name << std::endl;
 
     std::vector<llvm::Value *> llvm_args;
     // 处理所有参数
@@ -389,6 +417,6 @@ int Call::gencode_expr(VarType expected_type, llvm::Value *&ret_value) {
     /* call like: xxx.func() */
     return gencode_prev_expr(expected_type, ret_value);
   }
-  /* call like: func() */
+  /* call like: func()/ClassA() */
   return gencode_call_expr(expected_type, ret_value);
 }

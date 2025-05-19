@@ -175,3 +175,23 @@ llvm::Type* Context::get_llvm_type(VarType type) const {
             return llvm::Type::getVoidTy(*llvm_context);
     }
 }
+
+void Context::push_func_stack(llvm::Function *func, llvm::BasicBlock *block) {
+    func_stack.push({func, block});
+    builder->SetInsertPoint(block);
+    current_function = func;
+}
+
+void Context::pop_func_stack() {
+  func_stack.pop();
+  if (!func_stack.empty()) {
+    auto [func, block] = func_stack.top();
+    builder->SetInsertPoint(block);
+    current_function = func;
+  }
+}
+
+void Context::update_insert_point(llvm::BasicBlock *block) {
+  func_stack.top().second = block;
+  builder->SetInsertPoint(block);
+}

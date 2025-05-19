@@ -27,7 +27,6 @@ struct ClassInfo {
 
 class ASTNode : public std::enable_shared_from_this<ASTNode> {
 protected:
-  ASTNode *parent;
   std::map<std::string, std::shared_ptr<VarInfo>> vars;
   std::map<std::string, std::shared_ptr<FuncInfo>> funcs;
   std::map<std::string, std::shared_ptr<ClassInfo>> structs;
@@ -40,6 +39,7 @@ protected:
 
 public:
   int line;
+  ASTNode *parent;
   VarType type = VarType::NONE;
   Context &ctx;
   ASTNode(Context &ctx, int ln, bool is_scope = false);

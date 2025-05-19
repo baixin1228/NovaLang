@@ -35,7 +35,7 @@ int While::gencode_stmt() {
   auto exit_bb = llvm::BasicBlock::Create(*ctx.llvm_context, "exit", ctx.current_function);
 
   ctx.builder->CreateBr(loop_bb);
-  ctx.builder->SetInsertPoint(loop_bb);
+  ctx.update_insert_point(loop_bb);
   
   llvm::Value *cond = nullptr;
   if (condition->gencode_expr(VarType::BOOL, cond) != 0) {
@@ -44,7 +44,7 @@ int While::gencode_stmt() {
   
   ctx.builder->CreateCondBr(cond, body_bb, exit_bb);
 
-  ctx.builder->SetInsertPoint(body_bb);
+  ctx.update_insert_point(body_bb);
   for (auto &stmt : body) {
     if (stmt->gencode_stmt() == -1) {
       return -1;
@@ -52,7 +52,7 @@ int While::gencode_stmt() {
   }
   ctx.builder->CreateBr(loop_bb);
 
-  ctx.builder->SetInsertPoint(exit_bb);
+  ctx.update_insert_point(exit_bb);
   return 0;
 }
 

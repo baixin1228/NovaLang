@@ -8,6 +8,7 @@ public:
     std::string name;
     std::vector<std::shared_ptr<ASTNode>> args;
     std::shared_ptr<ASTNode> forward_expr = nullptr;
+
     std::shared_ptr<StructLiteral> instance = nullptr;
     std::shared_ptr<ASTNode> return_ast = nullptr;
 
@@ -16,7 +17,11 @@ public:
         : ASTNode(ctx, ln), 
           name(n), 
           args(std::move(a)),
-          forward_expr(forward_expr){}
+          forward_expr(forward_expr){
+      if (forward_expr) {
+        forward_expr->set_parent(this);
+      }
+    }
 
     void print(int level) override {
         std::cout << std::string(level * 2, ' ') << "Call: " << name << " type:" << var_type_to_string(type) << " [行 " << line << "]\n";

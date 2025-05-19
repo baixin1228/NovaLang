@@ -163,15 +163,6 @@ int CodeGen::generate() {
           return -1;
         }
       }
-
-      if (auto *cls = dynamic_cast<StructLiteral *>(stmt.get())) {
-        if (cls->struct_type == StructType::CLASS) {
-          std::cout << "==== Generating class: " << cls->name << " ====" << std::endl;
-          if (cls->gencode_stmt() == -1) {
-            return -1;
-          }
-        }
-      }
     }
 
     // 生成 main 函数
@@ -179,8 +170,7 @@ int CodeGen::generate() {
     auto main_func = llvm::Function::Create(func_ty, llvm::Function::ExternalLinkage, "main", *ctx.module);
     auto block = llvm::BasicBlock::Create(*ctx.llvm_context, "entry", main_func);
     // 从现在开始所有生成的指令都要放入这个基本块中
-    ctx.builder->SetInsertPoint(block);
-    ctx.current_function = main_func;
+    ctx.push_func_stack(main_func, block);
 
     // 只有在需要生成调试信息时才创建调试信息
     if (generate_debug_info) {
@@ -221,6 +211,7 @@ int CodeGen::generate() {
     }
 
     ctx.builder->CreateRet(ctx.builder->getInt32(0));
+    ctx.pop_func_stack();
     return 0;
 }
 

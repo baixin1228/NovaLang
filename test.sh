@@ -1,4 +1,6 @@
 #!/bin/bash
+cd $(dirname $0)
+echo "Current directory: $(pwd)"
 if [ "$1" == "rebuild" ]; then
     rm -rf build
     mkdir -p build
