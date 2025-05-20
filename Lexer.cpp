@@ -96,7 +96,6 @@ int Lexer::tokenize(std::vector<Token> &tokens) {
             else if (id == "global") tokens.emplace_back(TOK_GLOBAL, id, line);
             else if (id == "class") tokens.emplace_back(TOK_CLASS, id, line);
             else if (id == "__init__") tokens.emplace_back(TOK_INIT, id, line);
-            else if (id == "super") tokens.emplace_back(TOK_SUPER, id, line);
             else if (id == "pass") tokens.emplace_back(TOK_PASS, id, line);
             else tokens.emplace_back(TOK_ID, id, line);
             continue;
@@ -372,7 +371,6 @@ std::string Lexer::token_type_to_string(TokenType type) {
         case TOK_LTEQ: return "TOK_LTEQ";
         case TOK_CLASS: return "TOK_CLASS";
         case TOK_INIT: return "TOK_INIT";
-        case TOK_SUPER: return "TOK_SUPER";
         case TOK_AT: return "TOK_AT";
         case TOK_PASS: return "TOK_PASS";
         default: return "UNKNOWN";

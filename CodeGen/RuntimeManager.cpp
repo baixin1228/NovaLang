@@ -41,6 +41,7 @@ std::vector<std::string> RuntimeManager::getRuntimeFunctionNames() const {
         "nova_memory_release",
         "nova_memory_alloc",
         "nova_memory_get_data",
+        "nova_memory_copy",
         // 字典相关函数
         "nova_dict_new",
         "nova_dict_set_str_int",
@@ -77,6 +78,18 @@ llvm::FunctionType* RuntimeManager::createFunctionType(const std::string& name) 
         };
         return llvm::FunctionType::get(
             builder.getInt8PtrTy(),  // return type: void*
+            params,
+            false
+        );
+    }
+    else if (name == "nova_memory_copy") {
+        std::vector<llvm::Type*> params = {
+            memory_block_ptr_type,  // nova_memory_block* dst
+            memory_block_ptr_type,  // nova_memory_block* src
+            builder.getInt64Ty()    // size_t size
+        };
+        return llvm::FunctionType::get(
+            memory_block_ptr_type,  // return type: nova_memory_block*
             params,
             false
         );

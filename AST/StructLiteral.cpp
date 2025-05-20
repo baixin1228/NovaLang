@@ -123,7 +123,25 @@ int StructLiteral::visit_expr(std::shared_ptr<ASTNode> &expr_ret) {
 // }
 
 int StructLiteral::gencode_stmt() {
+  /* avoid circular dependency */
+  if (is_class_resolved) {
+    return 0;
+  }
+  is_class_resolved = true;
+
   if (struct_type == StructType::CLASS) {
+    StructLiteral *parent_class = nullptr;
+    if (!class_parent_name.empty()) {
+      auto parent_class_info = lookup_struct(class_parent_name);
+      if (parent_class_info) {
+        parent_class = dynamic_cast<StructLiteral *>(parent_class_info->node.get());
+        if (parent_class) {
+          parent_class->gencode_stmt();
+          /* copy parent class vtable */
+          vtable.insert(vtable.end(), parent_class->vtable.begin(), parent_class->vtable.end());
+        }
+      }
+    }
     /* generate attributes */
     for (auto attr : attributes) {
       auto attr_node = std::dynamic_pointer_cast<Assign>(attr);
@@ -134,14 +152,115 @@ int StructLiteral::gencode_stmt() {
       }
     }
     /* generate functions */
-    std::cout << "generate functions" << std::endl;
     for (auto func : functions) {
-      std::cout << "generate function: " << func.first << std::endl;
       auto func_node = std::dynamic_pointer_cast<Function>(func.second);
       if (func_node->reference_count > 0) {
         if (func_node->gencode_stmt() == -1) {
           return -1;
         }
+        auto it = std::find_if(vtable.begin(), vtable.end(), [func](const std::pair<std::string, std::shared_ptr<Function>> &item) {
+          return item.first == func.first;
+        });
+        if (it == vtable.end()) {
+          vtable.push_back(func);
+        } else {
+          it->second = func.second;
+        }
+      }
+    }
+
+    /* generate vtable */
+    if (!vtable.empty()) {
+      size_t vtable_size = vtable.size() * sizeof(void*);
+      
+      auto alloc_func = ctx.runtime_manager->getRuntimeFunction("nova_memory_alloc");
+      if (!alloc_func) {
+        throw std::runtime_error("未找到nova_memory_alloc函数");
+        return -1;
+      }
+
+      auto size_val = llvm::ConstantInt::get(ctx.builder->getInt64Ty(), vtable_size);
+      auto vtable_ptr = ctx.builder->CreateCall(alloc_func, {size_val}, name + "_vtable");
+
+      auto data_ptr = ctx.builder->CreateCall(
+          ctx.runtime_manager->getRuntimeFunction("nova_memory_get_data"),
+          {vtable_ptr});
+      
+      auto byte_ptr = ctx.builder->CreateBitCast(
+          data_ptr, llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+
+      auto vtable_global = new llvm::GlobalVariable(
+          *ctx.module,
+          llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(),
+                                 0),
+          false, // isConstant
+          llvm::GlobalValue::ExternalLinkage,
+          llvm::Constant::getNullValue(llvm::PointerType::get(
+              ctx.runtime_manager->getNovaMemoryBlockType(), 0)),
+          name + "_vtable_global");
+
+      ctx.builder->CreateStore(vtable_ptr, vtable_global);
+      llvm_vtable = vtable_global;
+
+      /* copy parent class vtable */
+      if (parent_class && parent_class->llvm_vtable) {
+        auto parent_vtable_ptr = ctx.builder->CreateLoad(
+            llvm::PointerType::get(ctx.runtime_manager->getNovaMemoryBlockType(), 0),
+            parent_class->llvm_vtable,
+            "parent_vtable_ptr");
+        
+        size_t parent_vtable_size = parent_class->vtable.size() * sizeof(void*);
+        if (parent_vtable_size > 0) {
+          auto memcpy_func = ctx.runtime_manager->getRuntimeFunction("nova_memory_copy");
+          if (memcpy_func) {
+            ctx.builder->CreateCall(memcpy_func, {
+                vtable_ptr,
+                parent_vtable_ptr,
+                llvm::ConstantInt::get(ctx.builder->getInt64Ty(), parent_vtable_size)
+            });
+          }
+        }
+      }
+
+      // 遍历所有虚函数，写入或覆盖虚函数表
+      for (size_t i = 0; i < vtable.size(); i++) {
+        if (parent_class && i < parent_class->vtable.size()) {
+          if (parent_class->vtable[i].first != vtable[i].first) {
+            throw std::runtime_error("parent class and child class vtable function name mismatch: " + parent_class->vtable[i].first + " != " + vtable[i].first);
+          }
+          if (parent_class->vtable[i].second == vtable[i].second) {
+            continue;
+          }
+        }
+
+        auto func_info = lookup_func(vtable[i].first);
+        if (!func_info) {
+          throw std::runtime_error("can't find function: " + vtable[i].first
+            + " src_line:" + std::to_string(line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
+          continue;
+        }
+        if (!func_info->llvm_func) {
+          throw std::runtime_error("function " + vtable[i].first + " llvm is null"
+            + " src_line:" + std::to_string(line) + " file:" + __FILE__ + " line:" + std::to_string(__LINE__));
+          continue;
+        }
+
+        size_t offset = i * sizeof(void*);
+        
+        auto value_ptr_ptr = ctx.builder->CreateGEP(
+            ctx.builder->getInt8Ty(), byte_ptr,
+            llvm::ConstantInt::get(ctx.builder->getInt64Ty(), offset));
+            
+        auto value_ptr = ctx.builder->CreateBitCast(
+            value_ptr_ptr,
+            llvm::PointerType::get(
+                llvm::PointerType::get(ctx.builder->getInt8Ty(), 0), 0));
+
+        auto func_ptr = ctx.builder->CreateBitCast(
+            func_info->llvm_func,
+            llvm::PointerType::get(ctx.builder->getInt8Ty(), 0));
+
+        ctx.builder->CreateStore(func_ptr, value_ptr);
       }
     }
   }
@@ -163,7 +282,6 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   }
 
   std::cout << "Gencode instance: " << name << std::endl;
-
   size_t total_size = 0;
   /* size of instance */
   for (const auto &field : fields) {
@@ -184,7 +302,7 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
   if (total_size == 0)
     throw std::runtime_error("instance size is 0");
   
-  /* allocate instance memory */
+  /* first: allocate instance memory */
   auto nova_memory_alloc_func =
       ctx.runtime_manager->getRuntimeFunction("nova_memory_alloc");
 
@@ -195,7 +313,7 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
 
   value = struct_ptr;
 
-  /* generate class: function and attributes, relabel instance memory */
+  /* second: generate class, function and attributes, relabel instance memory */
   auto class_info = lookup_struct(name);
   if (class_info) {
     if (class_info->node->gencode_stmt() != 0) {
@@ -205,7 +323,7 @@ int StructLiteral::gencode_expr(VarType expected_type, llvm::Value *&value) {
     throw std::runtime_error("class not found: " + name);
   }
 
-  /* generate instance fields */
+  /* third: generate instance fields */
   std::vector<std::pair<std::string, std::pair<VarType, llvm::Value *>>>
       field_data;
   for (const auto &field : fields) {

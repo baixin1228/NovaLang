@@ -22,6 +22,8 @@ private:
     // 为匿名结构体生成唯一名称（实现在.cpp中）
     std::string generateStructName() const;
 
+    bool is_class_resolved = false;
+
 public:
     std::string name;
     int visit_count = 0;
@@ -33,6 +35,9 @@ public:
     StructType struct_type;                 // 类型标识：结构体或类
     llvm::Value *llvm_instance = nullptr;
     std::string class_parent_name;
+
+    std::vector<std::pair<std::string, std::shared_ptr<Function>>> vtable;
+    llvm::Value *llvm_vtable = nullptr;
 
     bool is_abstract = false;
 

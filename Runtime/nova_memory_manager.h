@@ -47,6 +47,16 @@ int32_t nova_memory_release(nova_memory_block* block);
  */
 void* nova_memory_get_data(nova_memory_block* block);
 
+/**
+ * 复制内存数据，从一个内存块到另一个内存块
+ * 
+ * @param dst 目标内存块
+ * @param src 源内存块
+ * @param size 要复制的字节数
+ * @return 指向目标内存块的指针
+ */
+nova_memory_block* nova_memory_copy(nova_memory_block* dst, nova_memory_block* src, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

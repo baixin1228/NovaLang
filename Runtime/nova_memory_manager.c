@@ -243,3 +243,25 @@ void nova_memory_collect_garbage() {
     zero_ref_blocks->count = 0;
     DEBUG_PRINT("Garbage collection completed, freed %zu blocks", count);
 }
+
+nova_memory_block* nova_memory_copy(nova_memory_block* dst, nova_memory_block* src, size_t size) {
+    if (dst == NULL || src == NULL) {
+        DEBUG_PRINT("Attempt to copy with NULL pointer");
+        return NULL;
+    }
+    
+    // 获取源和目标的数据指针
+    void* dst_data = nova_memory_get_data(dst);
+    void* src_data = nova_memory_get_data(src);
+    
+    if (dst_data == NULL || src_data == NULL) {
+        DEBUG_PRINT("Failed to get data pointers");
+        return NULL;
+    }
+    
+    // 复制内存
+    memcpy(dst_data, src_data, size);
+    
+    DEBUG_PRINT("Copied %zu bytes from %p to %p", size, src, dst);
+    return dst;
+}
